@@ -1,18 +1,20 @@
+import 'dotenv/config';
 import winston from 'winston';
-import path from 'path';
-import {isDevelopment} from '../constants/system.constants';
+import path from 'node:path';
+import { isDevelopment } from '../constants/system.constants';
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
+
 const logFormat = printf(({ level, message, timestamp, stack }) => {
   return `${timestamp} [${level}]: ${stack || message}`;
 });
 
 const logger = winston.createLogger({
-  level: isDevelopment ?  'debug': 'info',
+  level: isDevelopment ? 'debug' : 'info',
   format: combine(
     errors({ stack: true }),
     timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-    logFormat
+    logFormat,
   ),
   defaultMeta: { service: 'goldzen-server' },
   transports: [
@@ -29,10 +31,24 @@ const logger = winston.createLogger({
 if (isDevelopment) {
   logger.add(
     new winston.transports.Console({
-      format: combine(colorize(), logFormat),
-    })
+      format: combine(colorize(), errors({ stack: true }), logFormat),
+    }),
   );
 }
 
-export default logger;
+export function logError(message: string, error: unknown): void {
+  if (error instanceof Error) {
+    logger.error(`${message}: ${error.message}`, { stack: error.stack });
+    if (isDevelopment) {
+      console.error(message, error);
+    }
+    return;
+  }
 
+  logger.error(`${message}: ${String(error)}`);
+  if (isDevelopment) {
+    console.error(message, error);
+  }
+}
+
+export default logger;

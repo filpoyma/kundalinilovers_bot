@@ -2,11 +2,14 @@ import './src/config/env';
 import mongoose from 'mongoose';
 import app from './app';
 import connectDatabase from './src/config/database';
-import logger from './src/config/logger';
+import logger, { logError } from './src/config/logger';
+import { registerDevErrorHandlers } from './src/config/devErrors';
 import { getBot, startTelegramBot, stopBot } from './src/bot';
 import { isWebhookMode } from './src/config/env';
 
 const PORT = process.env.PORT || 5000;
+
+registerDevErrorHandlers();
 
 const startServer = async (): Promise<void> => {
   try {
@@ -50,7 +53,7 @@ const startServer = async (): Promise<void> => {
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   } catch (error) {
-    logger.error('Failed to start server:', error);
+    logError('Failed to start server', error);
     process.exit(1);
   }
 };

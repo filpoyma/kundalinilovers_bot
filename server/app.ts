@@ -42,10 +42,6 @@ app.use(requestLogger);
 // Routes
 app.use('/api/kundalinilovers-bot', routes);
 
-app.get('/', (_req, res) => {
-  res.json({ message: 'Kundalini Lovers API Server' });
-});
-
 app.use(notFoundErrorHandler);
 app.use(errorHandler);
 

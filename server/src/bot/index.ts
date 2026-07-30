@@ -63,5 +63,5 @@ export async function startTelegramBot(): Promise<void> {
   }
 
   logger.warn('TELEGRAM_WEBHOOK_URL is not set — starting long polling (dev only)');
-  void startBot(bot);
+  await startBot(bot);
 }

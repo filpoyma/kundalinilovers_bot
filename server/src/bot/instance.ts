@@ -1,5 +1,6 @@
-import { Bot } from 'grammy';
-import logger from '../config/logger';
+import { Bot, type BotError } from 'grammy';
+import { logError } from '../config/logger';
+import { isDevelopment } from '../constants/system.constants';
 import { registerHandlers } from './handlers';
 
 let bot: Bot | undefined;
@@ -22,8 +23,12 @@ function createBotInstance(): Bot {
   const instance = new Bot(token);
   registerHandlers(instance);
 
-  instance.catch((err) => {
-    logger.error('Telegram bot error:', err);
+  instance.catch((err: BotError) => {
+    logError('Telegram bot error', err.error ?? err);
+
+    if (isDevelopment && err.ctx?.update) {
+      console.error('Update:', JSON.stringify(err.ctx.update, null, 2));
+    }
   });
 
   return instance;

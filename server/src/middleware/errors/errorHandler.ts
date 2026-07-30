@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { Error as MongooseError } from 'mongoose';
-import logger from '../../config/logger';
+import logger, { logError } from '../../config/logger';
 import { HTTP_STATUS, ERROR_MESSAGES } from '../../constants/status.constants';
 import { isDevelopment } from '../../constants/system.constants';
 import { IAppError } from '../../types/errors.types';
@@ -13,7 +13,7 @@ const errorHandler = (
 ): Response => {
   let statusCode: number = HTTP_STATUS.INTERNAL_SERVER_ERROR;
   let message: string = ERROR_MESSAGES.INTERNAL_SERVER_ERROR;
-  console.log('file-errorHandler.ts error:', err);
+
   if (err instanceof MongooseError.ValidationError) {
     statusCode = HTTP_STATUS.BAD_REQUEST;
     message = ERROR_MESSAGES.VALIDATION_ERROR;
@@ -30,11 +30,7 @@ const errorHandler = (
   }
 
   if (statusCode === HTTP_STATUS.INTERNAL_SERVER_ERROR) {
-    logger.error('Unhandled error:', {
-      message: err.message,
-      stack: err.stack,
-      requestId: _req.id,
-    });
+    logError('Unhandled HTTP error', err);
   }
 
   return res.status(statusCode).json({
