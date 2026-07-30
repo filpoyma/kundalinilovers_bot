@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import '../config/env';
 import mongoose from 'mongoose';
 import connectDatabase from '../config/database';
@@ -6,77 +9,55 @@ import SchedulePage from '../models/schedule-page.model';
 import OfflineLocation from '../models/offline-location.model';
 import OnlinePlatform from '../models/online-platform.model';
 import logger from '../config/logger';
+import type { TSeedData } from './seed.types';
+
+const seedDataPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'seed-data.json');
+
+async function loadSeedData(): Promise<TSeedData> {
+  const raw = await fs.readFile(seedDataPath, 'utf8');
+  return JSON.parse(raw) as TSeedData;
+}
 
 async function seed(): Promise<void> {
   await connectDatabase();
 
-  await ContentPage.findOneAndUpdate(
-    { key: 'services' },
-    {
-      content:
-        'Я провожу практики кундалини йоги, тантры жизни и личные сессии.\n\nВыберите интересующий раздел в меню.',
-    },
-    { upsert: true },
-  );
+  const data = await loadSeedData();
 
-  await ContentPage.findOneAndUpdate(
-    { key: 'private_session' },
-    {
-      content:
-        'Личная сессия — это индивидуальная работа с вашим запросом в безопасном пространстве.',
-      contactLink: 'https://t.me/your_contact',
-    },
-    { upsert: true },
-  );
+  for (const page of data.contentPages) {
+    await ContentPage.findOneAndUpdate(
+      { key: page.key },
+      {
+        content: page.content,
+        ...(page.contactLink ? { contactLink: page.contactLink } : {}),
+      },
+      { upsert: true },
+    );
+  }
 
-  await SchedulePage.findOneAndUpdate(
-    { type: 'offline' },
-    { title: 'Регулярные классы' },
-    { upsert: true },
-  );
-
-  await SchedulePage.findOneAndUpdate(
-    { type: 'online' },
-    { title: 'Онлайн-классы' },
-    { upsert: true },
-  );
+  for (const page of data.schedulePages) {
+    await SchedulePage.findOneAndUpdate(
+      { type: page.type },
+      { title: page.title },
+      { upsert: true },
+    );
+  }
 
   await OfflineLocation.deleteMany({});
   await OnlinePlatform.deleteMany({});
 
-  await OfflineLocation.create({
-    country: 'Бали',
-    city: 'Чангу',
-    address: 'Born To Be Complex',
-    sortOrder: 0,
-    slots: [
-      { dayOfWeek: 2, startTime: '20:00', endTime: '21:00', title: 'тантра жизни', sortOrder: 0 },
-      { dayOfWeek: 4, startTime: '20:00', endTime: '21:00', title: 'кундалини йога', sortOrder: 1 },
-    ],
-  });
+  if (data.offlineLocations.length > 0) {
+    await OfflineLocation.insertMany(data.offlineLocations);
+  }
 
-  await OfflineLocation.create({
-    country: 'Бали',
-    city: 'Убуд',
-    address: 'Arco Studio',
-    sortOrder: 1,
-    slots: [
-      { dayOfWeek: 3, startTime: '19:00', endTime: '20:00', title: 'тантра жизни', sortOrder: 0 },
-      { dayOfWeek: 5, startTime: '19:00', endTime: '20:00', title: 'кундалини йога', sortOrder: 1 },
-    ],
-  });
-
-  await OnlinePlatform.create({
-    platform: 'Zoom',
-    link: 'https://zoom.us/j/example',
-    sortOrder: 0,
-    slots: [
-      { dayOfWeek: 1, startTime: '10:00', endTime: '11:00', title: 'кундалини йога', sortOrder: 0 },
-      { dayOfWeek: 3, startTime: '10:00', endTime: '11:00', title: 'тантра жизни', sortOrder: 1 },
-    ],
-  });
+  if (data.onlinePlatforms.length > 0) {
+    await OnlinePlatform.insertMany(data.onlinePlatforms);
+  }
 
   logger.info('Seed completed successfully');
+  logger.info(
+    `contentPages: ${data.contentPages.length}, schedulePages: ${data.schedulePages.length}, offlineLocations: ${data.offlineLocations.length}, onlinePlatforms: ${data.onlinePlatforms.length}`,
+  );
+
   await mongoose.connection.close();
 }
 

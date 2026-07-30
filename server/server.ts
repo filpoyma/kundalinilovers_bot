@@ -38,7 +38,7 @@ const startServer = async (): Promise<void> => {
               process.exit(0);
             }),
           )
-          .catch((err) => {
+          .catch(err => {
             logger.error('Error during graceful shutdown:', err);
             process.exit(1);
           });
@@ -58,4 +58,4 @@ const startServer = async (): Promise<void> => {
   }
 };
 
-startServer();
+void startServer();

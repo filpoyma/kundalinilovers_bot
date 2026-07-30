@@ -1,0 +1,95 @@
+{
+  "contentPages": [
+    {
+      "key": "services",
+      "content": "Я провожу практики кундалини йоги, тантры жизни и личные сессии."
+    },
+    {
+      "key": "private_session",
+      "content": "ИНДИВИДУАЛЬНЫЕ СЕССИИ\n\n• тантра массаж / кашмирский массаж\n• гонг сессии (на воде или земле)\n• гармонизация состояния (чакры / мужско - женские энергии и тд)\n• практика, составленная под ваш запрос (онлайн и офлайн)\n• коуч-сессии (онлайн)\n• личное сопровождение 8 недель (онлайн)\n• корпоративные практики и ретриты (онлайн и офлайн)",
+      "contactLink": "@ustimenko_elena"
+    }
+  ],
+  "schedulePages": [
+    {
+      "type": "offline",
+      "title": "Регулярные классы"
+    },
+    {
+      "type": "online",
+      "title": "Онлайн-классы"
+    }
+  ],
+  "offlineLocations": [
+    {
+      "country": "Бали",
+      "city": "Чангу",
+      "address": "Born To Be",
+      "sortOrder": 0,
+      "isActive": true,
+      "slots": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "20:00",
+          "endTime": "21:00",
+          "title": "кундалини",
+          "sortOrder": 0
+        },
+        {
+          "dayOfWeek": 2,
+          "startTime": "20:00",
+          "endTime": "21:00",
+          "title": "тантра",
+          "sortOrder": 0
+        }
+      ]
+    },
+    {
+      "country": "Бали",
+      "city": "Убуд",
+      "address": "Ayenda",
+      "sortOrder": 1,
+      "isActive": true,
+      "slots": [
+        {
+          "dayOfWeek": 3,
+          "startTime": "19:00",
+          "endTime": "20:00",
+          "title": "тантра жизни",
+          "sortOrder": 0
+        },
+        {
+          "dayOfWeek": 5,
+          "startTime": "19:00",
+          "endTime": "20:00",
+          "title": "кундалини йога",
+          "sortOrder": 0
+        }
+      ]
+    }
+  ],
+  "onlinePlatforms": [
+    {
+      "platform": "Zoom",
+      "link": "https://zoom.us/j/example",
+      "sortOrder": 0,
+      "isActive": true,
+      "slots": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "title": "кундалини йога",
+          "sortOrder": 0
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "title": "тантра жизни",
+          "sortOrder": 1
+        }
+      ]
+    }
+  ]
+}
