@@ -25,7 +25,7 @@ export async function formatContentPage(key: TContentPageKey): Promise<string> {
 
   if (!page || !page.content) {
     if (key === 'services') {
-      return 'Информация об услугах пока не добавлена.';
+      return 'Раздел «Обо мне» пока не заполнен.';
     }
     return 'Информация о личных сессиях пока не добавлена.';
   }

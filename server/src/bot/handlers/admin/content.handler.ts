@@ -15,7 +15,7 @@ export function registerAdminContentHandler(bot: Bot): void {
     if (!requireAdmin(ctx)) return;
     const page = await getContentPage('services');
     await ctx.editMessageText(
-      `Редактирование «Мои услуги»\n\nТекущий текст:\n${page?.content || '(пусто)'}`,
+      `Редактирование «Обо мне»\n\nТекущий текст:\n${page?.content || '(пусто)'}`,
       { reply_markup: adminContentKeyboard('services') },
     );
   });
@@ -65,7 +65,7 @@ export async function handleContentTextMessage(
           updatedByTelegramId: ctx.from.id,
         });
         clearAdminSession(ctx.from.id);
-        await ctx.reply('Текст «Мои услуги» обновлён.', {
+        await ctx.reply('Текст «Обо мне» обновлён.', {
           reply_markup: adminContentKeyboard('services'),
         });
       }

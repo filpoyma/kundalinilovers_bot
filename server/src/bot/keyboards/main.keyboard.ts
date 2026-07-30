@@ -9,7 +9,7 @@ export const MENU_CALLBACKS = {
 } as const;
 
 export const MENU_LABELS = {
-  SERVICES: 'Мои услуги',
+  SERVICES: 'Обо мне',
   PRIVATE_SESSION: 'Записаться на личную сессию',
   ONLINE_SCHEDULE: 'Расписание онлайн',
   OFFLINE_SCHEDULE: 'Расписание офлайн',

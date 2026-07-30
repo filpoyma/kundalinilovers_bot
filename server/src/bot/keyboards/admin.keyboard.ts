@@ -8,7 +8,7 @@ export function adminMenuKeyboard(): InlineKeyboard {
     .row()
     .text('Редактировать офлайн-расписание', 'admin:edit:offline')
     .row()
-    .text('Редактировать «Мои услуги»', 'admin:edit:services')
+    .text('Редактировать «Обо мне»', 'admin:edit:services')
     .row()
     .text('Редактировать «Личная сессия»', 'admin:edit:private_session')
     .row()
