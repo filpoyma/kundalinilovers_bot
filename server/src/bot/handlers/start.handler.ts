@@ -1,21 +1,28 @@
 import type { Bot } from 'grammy';
 import { WELCOME_MESSAGE } from '../../constants/consent.constants';
-import { findOrCreateUser } from '../../services/user.service';
+import { findOrCreateUser, hasAcceptedConsent } from '../../services/user.service';
 import { isAdmin } from '../utils/isAdmin';
-import { mainMenuKeyboard } from '../keyboards/main.keyboard';
+import { mainMenuReplyKeyboard, removeReplyKeyboardMarkup } from '../keyboards/main.keyboard';
 import { adminMenuKeyboard } from '../keyboards/admin.keyboard';
+import { sendConsentPrompt } from '../middleware/requireConsent';
 
 export function registerStartHandler(bot: Bot): void {
   bot.command('start', async (ctx) => {
-    if (ctx.from) {
-      await findOrCreateUser(ctx);
+    if (!ctx.from) return;
+
+    const user = await findOrCreateUser(ctx);
+    const admin = isAdmin(ctx.from.id);
+
+    if (hasAcceptedConsent(user)) {
+      await ctx.reply(WELCOME_MESSAGE, {
+        reply_markup: mainMenuReplyKeyboard(admin),
+      });
+    } else {
+      await ctx.reply(WELCOME_MESSAGE, {
+        reply_markup: removeReplyKeyboardMarkup(),
+      });
+      await sendConsentPrompt(ctx);
     }
-
-    const admin = ctx.from ? isAdmin(ctx.from.id) : false;
-
-    await ctx.reply(WELCOME_MESSAGE, {
-      reply_markup: mainMenuKeyboard(admin),
-    });
   });
 
   bot.command('admin', async (ctx) => {

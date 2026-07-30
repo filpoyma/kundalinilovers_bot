@@ -4,13 +4,13 @@ import { AdminCb } from '../utils/adminCallbacks';
 
 export function adminMenuKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text('Редактировать «Мои услуги»', 'admin:edit:services')
-    .row()
-    .text('Редактировать «Личная сессия»', 'admin:edit:private_session')
-    .row()
     .text('Редактировать онлайн-расписание', 'admin:edit:online')
     .row()
     .text('Редактировать офлайн-расписание', 'admin:edit:offline')
+    .row()
+    .text('Редактировать «Мои услуги»', 'admin:edit:services')
+    .row()
+    .text('Редактировать «Личная сессия»', 'admin:edit:private_session')
     .row()
     .text('← Назад в меню', 'menu:main');
 }
@@ -24,7 +24,7 @@ export function adminScheduleKeyboard(type: TScheduleType): InlineKeyboard {
     .row()
     .text('➕ Добавить слот', `${prefix}:slot:create`)
     .row()
-    .text('📋 Список секций', AdminCb.sectionsList(type))
+    .text('📋 Редактировать / Удалить', AdminCb.sectionsList(type))
     .row()
     .text('← Назад', 'admin:panel');
 }

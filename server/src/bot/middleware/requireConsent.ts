@@ -7,6 +7,10 @@ import {
   setPendingMenuAction,
   type TPendingMenuAction,
 } from '../session/adminSession';
+import {
+  clearConsentMessagesFromChat,
+  trackConsentMessage,
+} from '../session/consentSession';
 
 const MENU_ACTIONS: TPendingMenuAction[] = [
   'menu:services',
@@ -15,11 +19,52 @@ const MENU_ACTIONS: TPendingMenuAction[] = [
   'menu:offline_schedule',
 ];
 
+async function sendTrackedConsentMessage(
+  ctx: Context,
+  text: string,
+  replyMarkup: ReturnType<typeof consentKeyboard>,
+): Promise<void> {
+  const message = await ctx.reply(text, { reply_markup: replyMarkup });
+
+  if (ctx.from) {
+    trackConsentMessage(ctx.from.id, message.chat.id, message.message_id);
+  }
+}
+
 export async function ensureUser(ctx: Context, next: NextFunction): Promise<void> {
   if (ctx.from) {
     await findOrCreateUser(ctx);
   }
   await next();
+}
+
+export async function sendConsentPrompt(ctx: Context): Promise<void> {
+  await sendTrackedConsentMessage(
+    ctx,
+    `Перед продолжением необходимо принять документы:\n\n${TERMS_TEXT}\n\n---\n\n${PRIVACY_TEXT}`,
+    consentKeyboard(),
+  );
+}
+
+export async function sendPrivacyConsentReminder(ctx: Context): Promise<void> {
+  await sendTrackedConsentMessage(
+    ctx,
+    `Спасибо! Теперь примите политику конфиденциальности:\n\n${PRIVACY_TEXT}`,
+    consentKeyboard(),
+  );
+}
+
+export async function sendTermsConsentReminder(ctx: Context): Promise<void> {
+  await sendTrackedConsentMessage(
+    ctx,
+    `Спасибо! Теперь примите пользовательское соглашение:\n\n${TERMS_TEXT}`,
+    consentKeyboard(),
+  );
+}
+
+export async function finalizeConsent(ctx: Context, onComplete: () => Promise<void>): Promise<void> {
+  await clearConsentMessagesFromChat(ctx);
+  await onComplete();
 }
 
 export async function requireConsentForMenu(
@@ -38,11 +83,7 @@ export async function requireConsentForMenu(
   }
 
   setPendingMenuAction(from.id, action);
-
-  await ctx.reply(
-    `Перед продолжением необходимо принять документы:\n\n${TERMS_TEXT}\n\n---\n\n${PRIVACY_TEXT}`,
-    { reply_markup: consentKeyboard() },
-  );
+  await sendConsentPrompt(ctx);
 }
 
 export function isMenuAction(data: string): data is TPendingMenuAction {

@@ -2,68 +2,110 @@ import type { Bot, Context } from 'grammy';
 import { formatContentPage } from '../../services/content.service';
 import { formatSchedule } from '../utils/formatSchedule';
 import { isAdmin } from '../utils/isAdmin';
-import { mainMenuKeyboard, backToMenuKeyboard, MENU_CALLBACKS } from '../keyboards/main.keyboard';
-import { WELCOME_MESSAGE } from '../../constants/consent.constants';
-import { requireConsentForMenu, handleConsentComplete } from '../middleware/requireConsent';
 import {
+  getMenuActionByLabel,
+  mainMenuReplyKeyboard,
+  removeReplyKeyboardMarkup,
+  MENU_CALLBACKS,
+  type TMenuAction,
+} from '../keyboards/main.keyboard';
+import { adminMenuKeyboard } from '../keyboards/admin.keyboard';
+import { WELCOME_MESSAGE } from '../../constants/consent.constants';
+import { requireConsentForMenu, handleConsentComplete, sendConsentPrompt, finalizeConsent, sendPrivacyConsentReminder, sendTermsConsentReminder } from '../middleware/requireConsent';
+import {
+  clearAdminSession,
   clearPendingMenuAction,
+  getAdminSession,
   getPendingMenuAction,
 } from '../session/adminSession';
-import { acceptPrivacy, acceptTerms, findOrCreateUser } from '../../services/user.service';
-import { consentKeyboard } from '../keyboards/consent.keyboard';
-import { TERMS_TEXT, PRIVACY_TEXT } from '../../constants/consent.constants';
+import {
+  acceptPrivacy,
+  acceptTerms,
+  findOrCreateUser,
+  hasAcceptedConsent,
+} from '../../services/user.service';
 
-async function showServices(ctx: Context, mode: 'edit' | 'reply' = 'edit'): Promise<void> {
+async function showServices(ctx: Context): Promise<void> {
   const text = await formatContentPage('services');
-  const markup = { reply_markup: backToMenuKeyboard() };
-  if (mode === 'edit' && ctx.callbackQuery) {
-    await ctx.editMessageText(text, markup);
-  } else {
-    await ctx.reply(text, markup);
-  }
+  await ctx.reply(text);
 }
 
-async function showPrivateSession(ctx: Context, mode: 'edit' | 'reply' = 'edit'): Promise<void> {
+async function showPrivateSession(ctx: Context): Promise<void> {
   const text = await formatContentPage('private_session');
-  const markup = { reply_markup: backToMenuKeyboard() };
-  if (mode === 'edit' && ctx.callbackQuery) {
-    await ctx.editMessageText(text, markup);
-  } else {
-    await ctx.reply(text, markup);
-  }
+  await ctx.reply(text);
 }
 
-async function showOnlineSchedule(ctx: Context, mode: 'edit' | 'reply' = 'edit'): Promise<void> {
+async function showOnlineSchedule(ctx: Context): Promise<void> {
   const { text } = await formatSchedule('online');
-  const markup = { reply_markup: backToMenuKeyboard() };
-  if (mode === 'edit' && ctx.callbackQuery) {
-    await ctx.editMessageText(text, markup);
-  } else {
-    await ctx.reply(text, markup);
-  }
+  await ctx.reply(text);
 }
 
-async function showOfflineSchedule(ctx: Context, mode: 'edit' | 'reply' = 'edit'): Promise<void> {
+async function showOfflineSchedule(ctx: Context): Promise<void> {
   const { text, parseMode } = await formatSchedule('offline', { linkAddresses: true });
-  const markup = {
-    reply_markup: backToMenuKeyboard(),
+  await ctx.reply(text, {
     ...(parseMode && {
       parse_mode: parseMode,
       link_preview_options: { is_disabled: true },
     }),
-  };
-  if (mode === 'edit' && ctx.callbackQuery) {
-    await ctx.editMessageText(text, markup);
-  } else {
-    await ctx.reply(text, markup);
-  }
+  });
+}
+
+async function sendWithMainMenuKeyboard(ctx: Context, text: string): Promise<void> {
+  if (!ctx.from) return;
+  await ctx.reply(text, {
+    reply_markup: mainMenuReplyKeyboard(isAdmin(ctx.from.id)),
+  });
 }
 
 async function showMainMenu(ctx: Context): Promise<void> {
-  const admin = ctx.from ? isAdmin(ctx.from.id) : false;
-  await ctx.editMessageText(WELCOME_MESSAGE, {
-    reply_markup: mainMenuKeyboard(admin),
-  });
+  if (!ctx.from) return;
+
+  const user = await findOrCreateUser(ctx);
+  if (!hasAcceptedConsent(user)) {
+    await ctx.reply(WELCOME_MESSAGE, { reply_markup: removeReplyKeyboardMarkup() });
+    await sendConsentPrompt(ctx);
+    return;
+  }
+
+  await sendWithMainMenuKeyboard(ctx, WELCOME_MESSAGE);
+}
+
+async function showAdminPanel(ctx: Context): Promise<void> {
+  if (!ctx.from || !isAdmin(ctx.from.id)) {
+    await ctx.reply('У вас нет доступа к админ-панели.');
+    return;
+  }
+
+  clearAdminSession(ctx.from.id);
+  await ctx.reply('Админ-панель', { reply_markup: adminMenuKeyboard() });
+}
+
+async function handleMenuAction(ctx: Context, action: TMenuAction): Promise<void> {
+  if (action === 'admin') {
+    await showAdminPanel(ctx);
+    return;
+  }
+
+  switch (action) {
+    case MENU_CALLBACKS.SERVICES:
+      await requireConsentForMenu(ctx, MENU_CALLBACKS.SERVICES, () => showServices(ctx));
+      break;
+    case MENU_CALLBACKS.PRIVATE_SESSION:
+      await requireConsentForMenu(ctx, MENU_CALLBACKS.PRIVATE_SESSION, () =>
+        showPrivateSession(ctx),
+      );
+      break;
+    case MENU_CALLBACKS.ONLINE_SCHEDULE:
+      await requireConsentForMenu(ctx, MENU_CALLBACKS.ONLINE_SCHEDULE, () =>
+        showOnlineSchedule(ctx),
+      );
+      break;
+    case MENU_CALLBACKS.OFFLINE_SCHEDULE:
+      await requireConsentForMenu(ctx, MENU_CALLBACKS.OFFLINE_SCHEDULE, () =>
+        showOfflineSchedule(ctx),
+      );
+      break;
+  }
 }
 
 async function executePendingAction(ctx: Context): Promise<void> {
@@ -77,53 +119,68 @@ async function executePendingAction(ctx: Context): Promise<void> {
 
   switch (pending) {
     case MENU_CALLBACKS.SERVICES:
-      await showServices(ctx, 'reply');
+      await showServices(ctx);
       break;
     case MENU_CALLBACKS.PRIVATE_SESSION:
-      await showPrivateSession(ctx, 'reply');
+      await showPrivateSession(ctx);
       break;
     case MENU_CALLBACKS.ONLINE_SCHEDULE:
-      await showOnlineSchedule(ctx, 'reply');
+      await showOnlineSchedule(ctx);
       break;
     case MENU_CALLBACKS.OFFLINE_SCHEDULE:
-      await showOfflineSchedule(ctx, 'reply');
+      await showOfflineSchedule(ctx);
       break;
   }
 }
 
 export function registerMenuHandler(bot: Bot): void {
-  bot.callbackQuery(MENU_CALLBACKS.MAIN, async (ctx) => {
+  bot.on('message:text', async (ctx, next) => {
+    if (!ctx.from) return next();
+
+    const adminSession = getAdminSession(ctx.from.id);
+    if (adminSession.step !== 'idle') return next();
+
+    const action = getMenuActionByLabel(ctx.message.text.trim());
+    if (!action) return next();
+
+    const user = await findOrCreateUser(ctx);
+    if (!hasAcceptedConsent(user)) return next();
+
+    await handleMenuAction(ctx, action);
+  });
+
+  bot.callbackQuery(MENU_CALLBACKS.MAIN, async ctx => {
     await ctx.answerCallbackQuery();
     await showMainMenu(ctx);
   });
 
-  bot.callbackQuery(MENU_CALLBACKS.SERVICES, async (ctx) => {
+  bot.callbackQuery(MENU_CALLBACKS.SERVICES, async ctx => {
     await ctx.answerCallbackQuery();
     await requireConsentForMenu(ctx, MENU_CALLBACKS.SERVICES, () => showServices(ctx));
   });
 
-  bot.callbackQuery(MENU_CALLBACKS.PRIVATE_SESSION, async (ctx) => {
+  bot.callbackQuery(MENU_CALLBACKS.PRIVATE_SESSION, async ctx => {
     await ctx.answerCallbackQuery();
     await requireConsentForMenu(ctx, MENU_CALLBACKS.PRIVATE_SESSION, () =>
       showPrivateSession(ctx),
     );
   });
 
-  bot.callbackQuery(MENU_CALLBACKS.ONLINE_SCHEDULE, async (ctx) => {
+  bot.callbackQuery(MENU_CALLBACKS.ONLINE_SCHEDULE, async ctx => {
     await ctx.answerCallbackQuery();
     await requireConsentForMenu(ctx, MENU_CALLBACKS.ONLINE_SCHEDULE, () =>
       showOnlineSchedule(ctx),
     );
   });
 
-  bot.callbackQuery(MENU_CALLBACKS.OFFLINE_SCHEDULE, async (ctx) => {
+  bot.callbackQuery(MENU_CALLBACKS.OFFLINE_SCHEDULE, async ctx => {
     await ctx.answerCallbackQuery();
     await requireConsentForMenu(ctx, MENU_CALLBACKS.OFFLINE_SCHEDULE, () =>
       showOfflineSchedule(ctx),
     );
   });
 
-  bot.callbackQuery('consent:terms', async (ctx) => {
+  bot.callbackQuery('consent:terms', async ctx => {
     await ctx.answerCallbackQuery();
     if (!ctx.from) return;
 
@@ -136,19 +193,23 @@ export function registerMenuHandler(bot: Bot): void {
     }
 
     if (!user.privacyAcceptedAt) {
-      await ctx.reply(`Спасибо! Теперь примите политику конфиденциальности:\n\n${PRIVACY_TEXT}`, {
-        reply_markup: consentKeyboard(),
-      });
+      await sendPrivacyConsentReminder(ctx);
       return;
     }
 
     if (await handleConsentComplete(ctx)) {
-      await ctx.reply('Спасибо! Открываю выбранный раздел...');
-      await executePendingAction(ctx);
+      await finalizeConsent(ctx, async () => {
+        await sendWithMainMenuKeyboard(ctx, 'Спасибо! Открываю выбранный раздел...');
+        await executePendingAction(ctx);
+      });
+    } else if (hasAcceptedConsent(user)) {
+      await finalizeConsent(ctx, async () => {
+        await sendWithMainMenuKeyboard(ctx, 'Спасибо! Теперь вы можете выбрать раздел в меню.');
+      });
     }
   });
 
-  bot.callbackQuery('consent:privacy', async (ctx) => {
+  bot.callbackQuery('consent:privacy', async ctx => {
     await ctx.answerCallbackQuery();
     if (!ctx.from) return;
 
@@ -161,15 +222,19 @@ export function registerMenuHandler(bot: Bot): void {
     }
 
     if (!user.termsAcceptedAt) {
-      await ctx.reply(`Спасибо! Теперь примите пользовательское соглашение:\n\n${TERMS_TEXT}`, {
-        reply_markup: consentKeyboard(),
-      });
+      await sendTermsConsentReminder(ctx);
       return;
     }
 
     if (await handleConsentComplete(ctx)) {
-      await ctx.reply('Спасибо! Открываю выбранный раздел...');
-      await executePendingAction(ctx);
+      await finalizeConsent(ctx, async () => {
+        await sendWithMainMenuKeyboard(ctx, 'Спасибо! Открываю выбранный раздел...');
+        await executePendingAction(ctx);
+      });
+    } else if (hasAcceptedConsent(user)) {
+      await finalizeConsent(ctx, async () => {
+        await sendWithMainMenuKeyboard(ctx, 'Спасибо! Теперь вы можете выбрать раздел в меню.');
+      });
     }
   });
 }

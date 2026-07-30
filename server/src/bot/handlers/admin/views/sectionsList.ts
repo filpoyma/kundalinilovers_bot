@@ -23,7 +23,7 @@ export async function buildSectionsList(type: TScheduleType): Promise<{
       .join('\n');
 
     return {
-      text: `Офлайн-секции:\n${list}\n\nРедактировать:\n📍 - секцию, 📋 - слот`,
+      text: `Офлайн-секции:\n${list}\n\nРедактировать:\n📍 - секцию, 📋 - временной слот`,
       keyboard: sectionsListKeyboard(
         type,
         locations.map((loc, i) => ({ index: i + 1, id: loc._id.toString() })),
@@ -41,7 +41,7 @@ export async function buildSectionsList(type: TScheduleType): Promise<{
     .join('\n');
 
   return {
-    text: `Онлайн-секции:\n${list}\n\nРедактировать:\n🌐 - секцию, 📋 - слот`,
+    text: `Онлайн-секции:\n${list}\n\nРедактировать:\n🌐 - секцию, 📋 - временной слот`,
     keyboard: sectionsListKeyboard(
       type,
       platforms.map((p, i) => ({ index: i + 1, id: p._id.toString() })),
