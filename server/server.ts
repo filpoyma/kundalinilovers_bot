@@ -3,7 +3,8 @@ import mongoose from 'mongoose';
 import app from './app';
 import connectDatabase from './src/config/database';
 import logger from './src/config/logger';
-import { createBot, startBot, stopBot } from './src/bot';
+import { getBot, startTelegramBot, stopBot } from './src/bot';
+import { isWebhookMode } from './src/config/env';
 
 const PORT = process.env.PORT || 5000;
 
@@ -11,13 +12,15 @@ const startServer = async (): Promise<void> => {
   try {
     await connectDatabase();
 
-    const bot = createBot();
-    await startBot(bot);
+    const bot = getBot();
 
     const server = app.listen(PORT, () => {
       logger.info(`Server is running on port ${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV}`);
+      logger.info(`Telegram mode: ${isWebhookMode ? 'webhook' : 'long polling'}`);
     });
+
+    await startTelegramBot();
 
     const gracefulShutdown = (signal: string): void => {
       logger.info(`${signal} received. Starting graceful shutdown...`);

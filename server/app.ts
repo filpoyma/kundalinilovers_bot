@@ -40,7 +40,7 @@ app.use(generalRateLimiter);
 app.use(requestLogger);
 
 // Routes
-app.use('/api/v1', routes);
+app.use('/api/kundalinilovers-bot', routes);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'Kundalini Lovers API Server' });

@@ -3,11 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Goldzen server with Express, Mongoose and TypeScript",
-  "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "tsx server.ts",
     "type-check": "tsc --noEmit",
     "seed": "tsx src/scripts/seed.ts"
   },
@@ -26,6 +24,7 @@
     "grammy": "^1.45.1",
     "helmet": "^8.3.0",
     "mongoose": "^8.24.2",
+    "tsx": "^4.23.1",
     "winston": "^3.19.0"
   },
   "devDependencies": {
@@ -34,8 +33,6 @@
     "@types/express": "^4.17.25",
     "@types/node": "^22.20.1",
     "prettier": "^3.9.6",
-    "ts-node-dev": "^2.0.0",
-    "tsx": "^4.23.1",
     "typescript": "^5.9.3"
   },
   "engines": {
