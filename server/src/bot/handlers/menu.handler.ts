@@ -34,7 +34,7 @@ async function showPrivateSession(ctx: Context, mode: 'edit' | 'reply' = 'edit')
 }
 
 async function showOnlineSchedule(ctx: Context, mode: 'edit' | 'reply' = 'edit'): Promise<void> {
-  const text = await formatSchedule('online');
+  const { text } = await formatSchedule('online');
   const markup = { reply_markup: backToMenuKeyboard() };
   if (mode === 'edit' && ctx.callbackQuery) {
     await ctx.editMessageText(text, markup);
@@ -44,8 +44,14 @@ async function showOnlineSchedule(ctx: Context, mode: 'edit' | 'reply' = 'edit')
 }
 
 async function showOfflineSchedule(ctx: Context, mode: 'edit' | 'reply' = 'edit'): Promise<void> {
-  const text = await formatSchedule('offline');
-  const markup = { reply_markup: backToMenuKeyboard() };
+  const { text, parseMode } = await formatSchedule('offline', { linkAddresses: true });
+  const markup = {
+    reply_markup: backToMenuKeyboard(),
+    ...(parseMode && {
+      parse_mode: parseMode,
+      link_preview_options: { is_disabled: true },
+    }),
+  };
   if (mode === 'edit' && ctx.callbackQuery) {
     await ctx.editMessageText(text, markup);
   } else {

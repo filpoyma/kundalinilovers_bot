@@ -14,7 +14,7 @@ export function registerAdminScheduleHandler(bot: Bot): void {
     await ctx.answerCallbackQuery();
     if (!requireAdmin(ctx)) return;
     const type = ctx.match![1] as 'online' | 'offline';
-    const text = await formatSchedule(type);
+    const { text } = await formatSchedule(type);
     await ctx.editMessageText(
       `Текущее ${type === 'offline' ? 'офлайн' : 'онлайн'}-расписание:\n\n${text}`,
       {
