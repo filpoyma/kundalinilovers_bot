@@ -6,6 +6,8 @@ import logger, { logError } from './src/config/logger';
 import { registerDevErrorHandlers } from './src/config/devErrors';
 import { getBot, startTelegramBot, stopBot } from './src/bot';
 import { isWebhookMode } from './src/config/env';
+import { startReminderWorker, stopReminderWorker, wakeReminderScheduler } from './src/jobs/reminder.worker';
+import { setReminderJobsChangedHandler } from './src/services/reminder.service';
 
 const PORT = process.env.PORT || 5000;
 
@@ -24,6 +26,8 @@ const startServer = async (): Promise<void> => {
     });
 
     await startTelegramBot();
+    setReminderJobsChangedHandler(wakeReminderScheduler);
+    startReminderWorker(bot);
 
     const gracefulShutdown = (signal: string): void => {
       logger.info(`${signal} received. Starting graceful shutdown...`);
@@ -32,12 +36,14 @@ const startServer = async (): Promise<void> => {
         logger.info('HTTP server closed');
 
         void stopBot(bot)
-          .then(() =>
-            mongoose.connection.close().then(() => {
-              logger.info('MongoDB connection closed');
-              process.exit(0);
-            }),
-          )
+          .then(() => {
+            stopReminderWorker();
+            return mongoose.connection.close();
+          })
+          .then(() => {
+            logger.info('MongoDB connection closed');
+            process.exit(0);
+          })
           .catch(err => {
             logger.error('Error during graceful shutdown:', err);
             process.exit(1);

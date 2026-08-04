@@ -4,6 +4,7 @@ import type { TScheduleType } from '../types/schedule.types';
 export interface ISchedulePage {
   type: TScheduleType;
   title: string;
+  timezone?: string;
   updatedAt: Date;
 }
 
@@ -13,6 +14,7 @@ const schedulePageSchema = new Schema<ISchedulePageDocument>(
   {
     type: { type: String, required: true, unique: true, enum: ['online', 'offline'] },
     title: { type: String, required: true, trim: true },
+    timezone: { type: String, trim: true },
   },
   { timestamps: { createdAt: false, updatedAt: true } },
 );

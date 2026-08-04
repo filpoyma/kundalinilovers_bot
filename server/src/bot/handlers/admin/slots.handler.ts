@@ -28,6 +28,10 @@ import type { TScheduleType } from '../../../types/schedule.types';
 import { DAY_INPUT_HINT, parseDayOfWeek, dayOfWeekToInputValue } from '../../../types/schedule.types';
 import { askPrefilledInput, replyAndRemoveInputKeyboard } from '../../utils/prefilledInput';
 import { requireAdmin } from './requireAdmin';
+import {
+  removeJobsForSlot,
+  rescheduleJobsForLocation,
+} from '../../../services/reminder.service';
 import { buildSlotsList } from './views/slotsList';
 
 const SLOT_STEPS = new Set<TAdminFlow['step']>([
@@ -105,7 +109,9 @@ export function registerAdminSlotsHandler(bot: Bot): void {
         return;
       }
       parentId = location._id.toString();
+      await removeJobsForSlot(new Types.ObjectId(slotId));
       await deleteOfflineSlot(location._id, new Types.ObjectId(slotId));
+      await rescheduleJobsForLocation(location._id);
     } else {
       const platform = await findOnlinePlatformBySlotId(new Types.ObjectId(slotId));
       if (!platform) {
@@ -242,6 +248,7 @@ export async function handleSlotTextMessage(
         title: text,
         sortOrder: 0,
       });
+      await rescheduleJobsForLocation(session.locationId);
       clearAdminSession(ctx.from.id);
       await ctx.reply(`Слот добавлен: ${text}`, {
         reply_markup: adminScheduleKeyboard('offline'),
@@ -383,6 +390,7 @@ export async function handleSlotTextMessage(
           sortOrder: 0,
         },
       );
+      await rescheduleJobsForLocation(session.locationId);
       clearAdminSession(ctx.from.id);
       const { text: slotsText, keyboard } = await buildSlotsList('offline', session.locationId);
       await replyAndRemoveInputKeyboard(ctx, `Слот обновлён: ${text}`);

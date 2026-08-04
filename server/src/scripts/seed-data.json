@@ -13,7 +13,8 @@
   "schedulePages": [
     {
       "type": "offline",
-      "title": "Регулярные классы"
+      "title": "Регулярные классы",
+      "timezone": "Asia/Makassar"
     },
     {
       "type": "online",

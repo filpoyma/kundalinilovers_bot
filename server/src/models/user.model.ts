@@ -5,8 +5,8 @@ export interface IUser {
   username?: string;
   firstName?: string;
   lastName?: string;
-  termsAcceptedAt?: Date;
-  privacyAcceptedAt?: Date;
+  consentAcceptedAt?: Date;
+  timezone?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,8 +19,8 @@ const userSchema = new Schema<IUserDocument>(
     username: { type: String, trim: true },
     firstName: { type: String, trim: true },
     lastName: { type: String, trim: true },
-    termsAcceptedAt: { type: Date },
-    privacyAcceptedAt: { type: Date },
+    consentAcceptedAt: { type: Date },
+    timezone: { type: String, trim: true },
   },
   { timestamps: true },
 );

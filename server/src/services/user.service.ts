@@ -29,21 +29,20 @@ export async function findUserByTelegramId(telegramId: number): Promise<IUserDoc
 }
 
 export function hasAcceptedConsent(user: IUserDocument): boolean {
-  return Boolean(user.termsAcceptedAt && user.privacyAcceptedAt);
+  return Boolean(user.consentAcceptedAt);
 }
 
-export async function acceptTerms(telegramId: number): Promise<IUserDocument | null> {
+export async function acceptConsent(telegramId: number): Promise<IUserDocument | null> {
   return User.findOneAndUpdate(
     { telegramId },
-    { termsAcceptedAt: new Date() },
+    { consentAcceptedAt: new Date() },
     { new: true },
   );
 }
 
-export async function acceptPrivacy(telegramId: number): Promise<IUserDocument | null> {
-  return User.findOneAndUpdate(
-    { telegramId },
-    { privacyAcceptedAt: new Date() },
-    { new: true },
-  );
+export async function setUserTimezone(
+  telegramId: number,
+  timezone: string,
+): Promise<IUserDocument | null> {
+  return User.findOneAndUpdate({ telegramId }, { timezone }, { new: true });
 }

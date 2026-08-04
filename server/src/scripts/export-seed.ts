@@ -31,6 +31,7 @@ async function exportSeedData(): Promise<TSeedData> {
     schedulePages: schedulePages.map((page) => ({
       type: page.type,
       title: page.title,
+      ...(page.timezone ? { timezone: page.timezone } : {}),
     })),
     offlineLocations: offlineLocations.map((location) => ({
       country: location.country,

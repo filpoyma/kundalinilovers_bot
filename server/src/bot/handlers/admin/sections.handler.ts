@@ -22,6 +22,9 @@ import { ADMIN_CB_PATTERNS, parseTypeCode } from '../../utils/adminCallbacks';
 import type { TScheduleType } from '../../../types/schedule.types';
 import { askPrefilledInput, replyAndRemoveInputKeyboard } from '../../utils/prefilledInput';
 import { requireAdmin } from './requireAdmin';
+import {
+  deactivateSubscriptionsForLocation,
+} from '../../../services/reminder.service';
 import { buildSectionMenu } from './views/sectionMenu';
 import { showSectionsList } from './views/sectionsList';
 
@@ -86,6 +89,7 @@ export function registerAdminSectionsHandler(bot: Bot): void {
     const id = ctx.match![2];
 
     if (type === 'offline') {
+      await deactivateSubscriptionsForLocation(new Types.ObjectId(id));
       await deleteOfflineLocation(new Types.ObjectId(id));
     } else {
       await deleteOnlinePlatform(new Types.ObjectId(id));

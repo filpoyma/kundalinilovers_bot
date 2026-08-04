@@ -1,12 +1,19 @@
 import type { Bot, Context } from 'grammy';
-import { adminScheduleKeyboard } from '../../keyboards/admin.keyboard';
+import { adminMenuKeyboard, adminScheduleKeyboard } from '../../keyboards/admin.keyboard';
+import { timezoneKeyboard } from '../../keyboards/timezone.keyboard';
 import {
   clearAdminSession,
   setAdminSession,
   type TAdminFlow,
 } from '../../session/adminSession';
-import { getSchedulePageTitle, upsertSchedulePageTitle } from '../../../services/schedule.service';
+import {
+  getSchedulePageTitle,
+  upsertSchedulePageTitle,
+  upsertSchedulePageTimezone,
+} from '../../../services/schedule.service';
 import { formatSchedule } from '../../utils/formatSchedule';
+import { getScheduleTimezone, getTimezoneLabel, isValidTimezone } from '../../../services/timezone.service';
+import { refreshAllReminderJobs } from '../../../services/reminder.service';
 import { requireAdmin } from './requireAdmin';
 
 export function registerAdminScheduleHandler(bot: Bot): void {
@@ -32,6 +39,61 @@ export function registerAdminScheduleHandler(bot: Bot): void {
     await ctx.reply(
       `Текущий заголовок: ${currentTitle || '(не задан)'}\n\nВведите новый заголовок страницы (например: «Регулярные классы»):`,
     );
+  });
+
+  bot.callbackQuery('admin:timezone', async ctx => {
+    await ctx.answerCallbackQuery();
+    if (!requireAdmin(ctx)) return;
+
+    const currentTimezone = await getScheduleTimezone();
+    await ctx.reply(
+      `Текущая таймзона для ввода времени в расписании: ${getTimezoneLabel(currentTimezone)}\n\nВыберите таймзону, в которой вы указываете время занятий:`,
+      { reply_markup: timezoneKeyboard(0, 'admin') },
+    );
+  });
+
+  bot.callbackQuery('admin:timezone:cancel', async ctx => {
+    await ctx.answerCallbackQuery();
+    if (!requireAdmin(ctx)) return;
+
+    try {
+      await ctx.deleteMessage();
+    } catch {
+      // Message may already be deleted.
+    }
+
+    await ctx.reply('Админ-панель', { reply_markup: adminMenuKeyboard() });
+  });
+
+  bot.callbackQuery(/^admin:tz:page:(\d+)$/, async ctx => {
+    await ctx.answerCallbackQuery();
+    if (!requireAdmin(ctx)) return;
+    const page = Number(ctx.match![1]);
+    await ctx.editMessageReplyMarkup({ reply_markup: timezoneKeyboard(page, 'admin') });
+  });
+
+  bot.callbackQuery(/^admin:tz:set:(.+)$/, async ctx => {
+    await ctx.answerCallbackQuery();
+    if (!requireAdmin(ctx)) return;
+
+    const timezone = ctx.match![1];
+    if (!isValidTimezone(timezone)) {
+      await ctx.reply('Некорректный часовой пояс.');
+      return;
+    }
+
+    await upsertSchedulePageTimezone('offline', timezone);
+    await refreshAllReminderJobs();
+
+    try {
+      await ctx.deleteMessage();
+    } catch {
+      // Message may already be deleted.
+    }
+
+    await ctx.reply(`Таймзона для расписания обновлена: ${getTimezoneLabel(timezone)}`, {
+      reply_markup: adminMenuKeyboard(),
+    });
   });
 }
 

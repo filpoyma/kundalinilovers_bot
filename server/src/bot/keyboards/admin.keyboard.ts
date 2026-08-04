@@ -12,6 +12,8 @@ export function adminMenuKeyboard(): InlineKeyboard {
     .row()
     .text('Редактировать «Личная сессия»', 'admin:edit:private_session')
     .row()
+    .text('🕐 Установить таймзону', 'admin:timezone')
+    .row()
     .text('← Назад в меню', 'menu:main');
 }
 

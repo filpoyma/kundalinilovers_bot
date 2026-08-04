@@ -17,6 +17,10 @@ export async function upsertSchedulePageTitle(type: TScheduleType, title: string
   return SchedulePage.findOneAndUpdate({ type }, { title }, { upsert: true, new: true });
 }
 
+export async function upsertSchedulePageTimezone(type: TScheduleType, timezone: string) {
+  return SchedulePage.findOneAndUpdate({ type }, { timezone }, { upsert: true, new: true });
+}
+
 export async function getActiveOfflineLocations() {
   return OfflineLocation.find({ isActive: true }).sort({ sortOrder: 1 });
 }

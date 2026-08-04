@@ -9,6 +9,7 @@ export type TSeedContentPage = {
 export type TSeedSchedulePage = {
   type: TScheduleType;
   title: string;
+  timezone?: string;
 };
 
 export type TSeedScheduleSlot = Omit<IScheduleSlot, '_id'>;

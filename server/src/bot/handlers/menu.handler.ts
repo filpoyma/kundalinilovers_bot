@@ -1,6 +1,5 @@
 import type { Bot, Context } from 'grammy';
 import { formatContentPage } from '../../services/content.service';
-import { formatSchedule } from '../utils/formatSchedule';
 import { isAdmin } from '../utils/isAdmin';
 import {
   getMenuActionByLabel,
@@ -11,19 +10,27 @@ import {
 } from '../keyboards/main.keyboard';
 import { adminMenuKeyboard } from '../keyboards/admin.keyboard';
 import { WELCOME_MESSAGE } from '../../constants/consent.constants';
-import { requireConsentForMenu, handleConsentComplete, sendConsentPrompt, finalizeConsent, sendPrivacyConsentReminder, sendTermsConsentReminder } from '../middleware/requireConsent';
+import {
+  requireConsentForMenu,
+  handleConsentComplete,
+  sendConsentPrompt,
+  finalizeConsent,
+} from '../middleware/requireConsent';
+import { sendTimezonePrompt } from './timezone.handler';
+import {
+  showOnlineSchedule,
+  showOfflineSchedule,
+  executeSchedulePendingAction,
+} from './schedule.actions';
 import {
   clearAdminSession,
   clearPendingMenuAction,
   getAdminSession,
   getPendingMenuAction,
+  setPendingMenuAction,
+  type TPendingMenuAction,
 } from '../session/adminSession';
-import {
-  acceptPrivacy,
-  acceptTerms,
-  findOrCreateUser,
-  hasAcceptedConsent,
-} from '../../services/user.service';
+import { acceptConsent, findOrCreateUser, hasAcceptedConsent } from '../../services/user.service';
 
 async function showServices(ctx: Context): Promise<void> {
   const text = await formatContentPage('services');
@@ -33,21 +40,6 @@ async function showServices(ctx: Context): Promise<void> {
 async function showPrivateSession(ctx: Context): Promise<void> {
   const text = await formatContentPage('private_session');
   await ctx.reply(text);
-}
-
-async function showOnlineSchedule(ctx: Context): Promise<void> {
-  const { text } = await formatSchedule('online');
-  await ctx.reply(text);
-}
-
-async function showOfflineSchedule(ctx: Context): Promise<void> {
-  const { text, parseMode } = await formatSchedule('offline', { linkAddresses: true });
-  await ctx.reply(text, {
-    ...(parseMode && {
-      parse_mode: parseMode,
-      link_preview_options: { is_disabled: true },
-    }),
-  });
 }
 
 async function sendWithMainMenuKeyboard(ctx: Context, text: string): Promise<void> {
@@ -80,6 +72,27 @@ async function showAdminPanel(ctx: Context): Promise<void> {
   await ctx.reply('Админ-панель', { reply_markup: adminMenuKeyboard() });
 }
 
+async function requireTimezoneForSchedule(
+  ctx: Context,
+  action: Extract<
+    TPendingMenuAction,
+    typeof MENU_CALLBACKS.ONLINE_SCHEDULE | typeof MENU_CALLBACKS.OFFLINE_SCHEDULE
+  >,
+  showSchedule: () => Promise<void>,
+): Promise<void> {
+  const from = ctx.from;
+  if (!from) return;
+
+  const user = await findOrCreateUser(ctx);
+  if (user.timezone) {
+    await showSchedule();
+    return;
+  }
+
+  setPendingMenuAction(from.id, action);
+  await sendTimezonePrompt(ctx, 'Для просмотра расписания выберите ваш часовой пояс:');
+}
+
 async function handleMenuAction(ctx: Context, action: TMenuAction): Promise<void> {
   if (action === 'admin') {
     await showAdminPanel(ctx);
@@ -97,12 +110,16 @@ async function handleMenuAction(ctx: Context, action: TMenuAction): Promise<void
       break;
     case MENU_CALLBACKS.ONLINE_SCHEDULE:
       await requireConsentForMenu(ctx, MENU_CALLBACKS.ONLINE_SCHEDULE, () =>
-        showOnlineSchedule(ctx),
+        requireTimezoneForSchedule(ctx, MENU_CALLBACKS.ONLINE_SCHEDULE, () =>
+          showOnlineSchedule(ctx),
+        ),
       );
       break;
     case MENU_CALLBACKS.OFFLINE_SCHEDULE:
       await requireConsentForMenu(ctx, MENU_CALLBACKS.OFFLINE_SCHEDULE, () =>
-        showOfflineSchedule(ctx),
+        requireTimezoneForSchedule(ctx, MENU_CALLBACKS.OFFLINE_SCHEDULE, () =>
+          showOfflineSchedule(ctx),
+        ),
       );
       break;
   }
@@ -115,6 +132,17 @@ async function executePendingAction(ctx: Context): Promise<void> {
   const pending = getPendingMenuAction(from.id);
   if (!pending) return;
 
+  if (pending === MENU_CALLBACKS.ONLINE_SCHEDULE || pending === MENU_CALLBACKS.OFFLINE_SCHEDULE) {
+    const user = await findOrCreateUser(ctx);
+    if (!user.timezone) {
+      await sendTimezonePrompt(ctx, 'Для просмотра расписания выберите ваш часовой пояс:');
+      return;
+    }
+
+    await executeSchedulePendingAction(ctx);
+    return;
+  }
+
   clearPendingMenuAction(from.id);
 
   switch (pending) {
@@ -123,12 +151,6 @@ async function executePendingAction(ctx: Context): Promise<void> {
       break;
     case MENU_CALLBACKS.PRIVATE_SESSION:
       await showPrivateSession(ctx);
-      break;
-    case MENU_CALLBACKS.ONLINE_SCHEDULE:
-      await showOnlineSchedule(ctx);
-      break;
-    case MENU_CALLBACKS.OFFLINE_SCHEDULE:
-      await showOfflineSchedule(ctx);
       break;
   }
 }
@@ -161,39 +183,35 @@ export function registerMenuHandler(bot: Bot): void {
 
   bot.callbackQuery(MENU_CALLBACKS.PRIVATE_SESSION, async ctx => {
     await ctx.answerCallbackQuery();
-    await requireConsentForMenu(ctx, MENU_CALLBACKS.PRIVATE_SESSION, () =>
-      showPrivateSession(ctx),
-    );
+    await requireConsentForMenu(ctx, MENU_CALLBACKS.PRIVATE_SESSION, () => showPrivateSession(ctx));
   });
 
   bot.callbackQuery(MENU_CALLBACKS.ONLINE_SCHEDULE, async ctx => {
     await ctx.answerCallbackQuery();
     await requireConsentForMenu(ctx, MENU_CALLBACKS.ONLINE_SCHEDULE, () =>
-      showOnlineSchedule(ctx),
+      requireTimezoneForSchedule(ctx, MENU_CALLBACKS.ONLINE_SCHEDULE, () =>
+        showOnlineSchedule(ctx),
+      ),
     );
   });
 
   bot.callbackQuery(MENU_CALLBACKS.OFFLINE_SCHEDULE, async ctx => {
     await ctx.answerCallbackQuery();
     await requireConsentForMenu(ctx, MENU_CALLBACKS.OFFLINE_SCHEDULE, () =>
-      showOfflineSchedule(ctx),
+      requireTimezoneForSchedule(ctx, MENU_CALLBACKS.OFFLINE_SCHEDULE, () =>
+        showOfflineSchedule(ctx),
+      ),
     );
   });
 
-  bot.callbackQuery('consent:terms', async ctx => {
+  bot.callbackQuery('consent:accept', async ctx => {
     await ctx.answerCallbackQuery();
     if (!ctx.from) return;
 
-    await acceptTerms(ctx.from.id);
-    const user = await findOrCreateUser(ctx);
+    const user = await acceptConsent(ctx.from.id);
 
-    if (!user.termsAcceptedAt) {
+    if (!user || !hasAcceptedConsent(user)) {
       await ctx.reply('Ошибка при сохранении согласия.');
-      return;
-    }
-
-    if (!user.privacyAcceptedAt) {
-      await sendPrivacyConsentReminder(ctx);
       return;
     }
 
@@ -202,39 +220,11 @@ export function registerMenuHandler(bot: Bot): void {
         await sendWithMainMenuKeyboard(ctx, 'Спасибо! Открываю выбранный раздел...');
         await executePendingAction(ctx);
       });
-    } else if (hasAcceptedConsent(user)) {
-      await finalizeConsent(ctx, async () => {
-        await sendWithMainMenuKeyboard(ctx, 'Спасибо! Теперь вы можете выбрать раздел в меню.');
-      });
-    }
-  });
-
-  bot.callbackQuery('consent:privacy', async ctx => {
-    await ctx.answerCallbackQuery();
-    if (!ctx.from) return;
-
-    await acceptPrivacy(ctx.from.id);
-    const user = await findOrCreateUser(ctx);
-
-    if (!user.privacyAcceptedAt) {
-      await ctx.reply('Ошибка при сохранении согласия.');
       return;
     }
 
-    if (!user.termsAcceptedAt) {
-      await sendTermsConsentReminder(ctx);
-      return;
-    }
-
-    if (await handleConsentComplete(ctx)) {
-      await finalizeConsent(ctx, async () => {
-        await sendWithMainMenuKeyboard(ctx, 'Спасибо! Открываю выбранный раздел...');
-        await executePendingAction(ctx);
-      });
-    } else if (hasAcceptedConsent(user)) {
-      await finalizeConsent(ctx, async () => {
-        await sendWithMainMenuKeyboard(ctx, 'Спасибо! Теперь вы можете выбрать раздел в меню.');
-      });
-    }
+    await finalizeConsent(ctx, async () => {
+      await sendWithMainMenuKeyboard(ctx, 'Спасибо!');
+    });
   });
 }

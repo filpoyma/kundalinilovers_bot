@@ -1,16 +1,14 @@
 import type { Context, NextFunction } from 'grammy';
+import { CONSENT_PROMPT_TEXT } from '../../constants/consent.constants';
 import { findOrCreateUser, hasAcceptedConsent } from '../../services/user.service';
-import { PRIVACY_TEXT, TERMS_TEXT } from '../../constants/consent.constants';
+import { getLegalDocumentInputFile } from '../../services/legal-documents.service';
 import { consentKeyboard } from '../keyboards/consent.keyboard';
 import {
   getPendingMenuAction,
   setPendingMenuAction,
   type TPendingMenuAction,
 } from '../session/adminSession';
-import {
-  clearConsentMessagesFromChat,
-  trackConsentMessage,
-} from '../session/consentSession';
+import { clearConsentMessagesFromChat, trackConsentMessage } from '../session/consentSession';
 
 const MENU_ACTIONS: TPendingMenuAction[] = [
   'menu:services',
@@ -31,6 +29,14 @@ async function sendTrackedConsentMessage(
   }
 }
 
+async function sendTrackedDocument(ctx: Context, type: 'terms' | 'privacy'): Promise<void> {
+  const message = await ctx.replyWithDocument(getLegalDocumentInputFile(type));
+
+  if (ctx.from) {
+    trackConsentMessage(ctx.from.id, message.chat.id, message.message_id);
+  }
+}
+
 export async function ensureUser(ctx: Context, next: NextFunction): Promise<void> {
   if (ctx.from) {
     await findOrCreateUser(ctx);
@@ -39,30 +45,15 @@ export async function ensureUser(ctx: Context, next: NextFunction): Promise<void
 }
 
 export async function sendConsentPrompt(ctx: Context): Promise<void> {
-  await sendTrackedConsentMessage(
-    ctx,
-    `Перед продолжением необходимо принять документы:\n\n${TERMS_TEXT}\n\n---\n\n${PRIVACY_TEXT}`,
-    consentKeyboard(),
-  );
+  await sendTrackedDocument(ctx, 'terms');
+  await sendTrackedDocument(ctx, 'privacy');
+  await sendTrackedConsentMessage(ctx, CONSENT_PROMPT_TEXT, consentKeyboard());
 }
 
-export async function sendPrivacyConsentReminder(ctx: Context): Promise<void> {
-  await sendTrackedConsentMessage(
-    ctx,
-    `Спасибо! Теперь примите политику конфиденциальности:\n\n${PRIVACY_TEXT}`,
-    consentKeyboard(),
-  );
-}
-
-export async function sendTermsConsentReminder(ctx: Context): Promise<void> {
-  await sendTrackedConsentMessage(
-    ctx,
-    `Спасибо! Теперь примите пользовательское соглашение:\n\n${TERMS_TEXT}`,
-    consentKeyboard(),
-  );
-}
-
-export async function finalizeConsent(ctx: Context, onComplete: () => Promise<void>): Promise<void> {
+export async function finalizeConsent(
+  ctx: Context,
+  onComplete: () => Promise<void>,
+): Promise<void> {
   await clearConsentMessagesFromChat(ctx);
   await onComplete();
 }

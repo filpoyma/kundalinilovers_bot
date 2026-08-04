@@ -37,7 +37,10 @@ async function seed(): Promise<void> {
   for (const page of data.schedulePages) {
     await SchedulePage.findOneAndUpdate(
       { type: page.type },
-      { title: page.title },
+      {
+        title: page.title,
+        ...(page.timezone ? { timezone: page.timezone } : {}),
+      },
       { upsert: true },
     );
   }

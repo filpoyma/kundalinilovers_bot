@@ -12,3 +12,12 @@ export type { IOfflineLocation, IOfflineLocationDocument } from './offline-locat
 
 export { default as OnlinePlatform } from './online-platform.model';
 export type { IOnlinePlatform, IOnlinePlatformDocument } from './online-platform.model';
+
+export { default as ClassReminderSubscription } from './class-reminder-subscription.model';
+export type {
+  IClassReminderSubscription,
+  IClassReminderSubscriptionDocument,
+} from './class-reminder-subscription.model';
+
+export { default as ClassReminderJob } from './class-reminder-job.model';
+export type { IClassReminderJob, IClassReminderJobDocument } from './class-reminder-job.model';
