@@ -5,11 +5,9 @@ import ClassReminderJob from '../models/class-reminder-job.model';
 import ClassReminderSubscription from '../models/class-reminder-subscription.model';
 import type { IOfflineLocationDocument } from '../models';
 import type { IScheduleSlot } from '../types/schedule.types';
-import {
-  formatOfflineLocationHeader,
-  getOfflineLocationById,
-  getActiveOfflineLocations,
-} from './schedule.service';
+import { formatOfflineLocationHeaderHtml } from '../bot/utils/formatOfflineLocationHeader';
+import { escapeTelegramHtml } from '../bot/utils/telegramHtml';
+import { getOfflineLocationById, getActiveOfflineLocations } from './schedule.service';
 import {
   formatClassReminderTime,
   getNextClassOccurrence,
@@ -163,9 +161,9 @@ async function buildReminderMessage(
 ): Promise<string> {
   const classStart = DateTime.fromJSDate(classStartsAt);
   const timeText = formatClassReminderTime(classStart, scheduleTimezone, userTimezone);
-  const header = formatOfflineLocationHeader(location);
+  const header = formatOfflineLocationHeaderHtml(location);
 
-  return `Завтра занятие «${slot.title}»\n📍 ${header}\n🕐 ${timeText}`;
+  return `Завтра занятие «${escapeTelegramHtml(slot.title)}»\n📍 ${header}\n🕐 ${escapeTelegramHtml(timeText)}`;
 }
 
 async function scheduleNextJob(
@@ -248,7 +246,10 @@ export async function processDueReminders(bot: Bot): Promise<void> {
     );
 
     try {
-      await bot.api.sendMessage(job.telegramId, message);
+      await bot.api.sendMessage(job.telegramId, message, {
+        parse_mode: 'HTML',
+        link_preview_options: { is_disabled: true },
+      });
       job.sentAt = now;
       await job.save();
       await scheduleNextJob(job.telegramId, job.locationId, slot, scheduleTimezone);

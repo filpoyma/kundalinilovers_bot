@@ -15,7 +15,7 @@ import {
 import type { TScheduleType } from '../../types/schedule.types';
 import { formatSlotForUser, getScheduleTimezone } from '../../services/timezone.service';
 import { escapeTelegramHtml } from './telegramHtml';
-import { buildGoogleMapsDirectionsUrl, buildOfflineLocationMapsQuery } from './googleMaps';
+import { formatOfflineLocationHeaderHtml } from './formatOfflineLocationHeader';
 
 export type TFormattedSchedule = {
   text: string;
@@ -43,18 +43,6 @@ function formatOfflineSection(location: IOfflineLocationDocument): string {
   const slots = [...location.slots].sort(compareSlotsByStartTime).map(formatSlot).join('\n');
 
   return slots ? `${header}\n${slots}` : header;
-}
-
-function formatOfflineLocationHeaderHtml(location: IOfflineLocationDocument): string {
-  const country = escapeTelegramHtml(location.country);
-  const city = escapeTelegramHtml(location.city);
-  const address = escapeTelegramHtml(location.address);
-  const mapsUrl = buildGoogleMapsDirectionsUrl(buildOfflineLocationMapsQuery(location)).replace(
-    /&/g,
-    '&amp;',
-  );
-
-  return `${country} · ${city} · <a href="${mapsUrl}">${address}</a>`;
 }
 
 async function formatOfflineSectionHtml(

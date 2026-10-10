@@ -5,7 +5,7 @@ import {
   subscribeToLocation,
   unsubscribeFromLocation,
 } from '../../services/reminder.service';
-import { formatOfflineLocationHeader } from '../../services/schedule.service';
+import { formatOfflineLocationHeaderHtml } from '../utils/formatOfflineLocationHeader';
 
 export function registerReminderHandler(bot: Bot): void {
   bot.callbackQuery(/^remind:loc:([a-f0-9]{24})$/, async ctx => {
@@ -27,7 +27,10 @@ export function registerReminderHandler(bot: Bot): void {
       return;
     }
 
-    await ctx.reply(`Напоминания включены для:\n${formatOfflineLocationHeader(location)}`);
+    await ctx.reply(`Напоминания включены для:\n${formatOfflineLocationHeaderHtml(location)}`, {
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true },
+    });
     await updateReminderButton(ctx, locationId, true);
   });
 }
