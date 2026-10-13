@@ -1,4 +1,4 @@
-import { Keyboard } from 'grammy';
+import { InlineKeyboard, Keyboard } from 'grammy';
 
 export const MENU_CALLBACKS = {
   SERVICES: 'menu:services',
@@ -11,17 +11,20 @@ export const MENU_CALLBACKS = {
 export const MENU_LABELS = {
   SERVICES: 'Обо мне',
   PRIVATE_SESSION: 'Записаться на личную сессию',
+  SCHEDULES: 'Регулярные расписания',
   ONLINE_SCHEDULE: 'Расписание онлайн',
   OFFLINE_SCHEDULE: 'Расписание офлайн',
   ADMIN: '⚙️ Админ-панель',
 } as const;
 
-export type TMenuAction = (typeof MENU_CALLBACKS)[keyof typeof MENU_CALLBACKS] | 'admin';
+export type TMenuAction =
+  | (typeof MENU_CALLBACKS)[keyof typeof MENU_CALLBACKS]
+  | 'admin'
+  | 'schedules';
 
 export function mainMenuReplyKeyboard(isAdminUser: boolean): Keyboard {
   const keyboard = new Keyboard()
-    .text(MENU_LABELS.ONLINE_SCHEDULE)
-    .text(MENU_LABELS.OFFLINE_SCHEDULE)
+    .text(MENU_LABELS.SCHEDULES)
     .row()
     .text(MENU_LABELS.SERVICES)
     .row()
@@ -34,6 +37,12 @@ export function mainMenuReplyKeyboard(isAdminUser: boolean): Keyboard {
   return keyboard.resized().persistent();
 }
 
+export function scheduleMenuKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(MENU_LABELS.ONLINE_SCHEDULE, MENU_CALLBACKS.ONLINE_SCHEDULE)
+    .text(MENU_LABELS.OFFLINE_SCHEDULE, MENU_CALLBACKS.OFFLINE_SCHEDULE);
+}
+
 export function removeReplyKeyboardMarkup(): { remove_keyboard: true } {
   return { remove_keyboard: true };
 }
@@ -44,6 +53,8 @@ export function getMenuActionByLabel(text: string): TMenuAction | null {
       return MENU_CALLBACKS.SERVICES;
     case MENU_LABELS.PRIVATE_SESSION:
       return MENU_CALLBACKS.PRIVATE_SESSION;
+    case MENU_LABELS.SCHEDULES:
+      return 'schedules';
     case MENU_LABELS.ONLINE_SCHEDULE:
       return MENU_CALLBACKS.ONLINE_SCHEDULE;
     case MENU_LABELS.OFFLINE_SCHEDULE:

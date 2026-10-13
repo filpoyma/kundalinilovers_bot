@@ -5,6 +5,7 @@ import {
   getMenuActionByLabel,
   mainMenuReplyKeyboard,
   removeReplyKeyboardMarkup,
+  scheduleMenuKeyboard,
   MENU_CALLBACKS,
   type TMenuAction,
 } from '../keyboards/main.keyboard';
@@ -40,6 +41,10 @@ async function showServices(ctx: Context): Promise<void> {
 async function showPrivateSession(ctx: Context): Promise<void> {
   const text = await formatContentPage('private_session');
   await ctx.reply(text);
+}
+
+async function showScheduleMenu(ctx: Context): Promise<void> {
+  await ctx.reply('Выберите расписание:', { reply_markup: scheduleMenuKeyboard() });
 }
 
 async function sendWithMainMenuKeyboard(ctx: Context, text: string): Promise<void> {
@@ -96,6 +101,11 @@ async function requireTimezoneForSchedule(
 async function handleMenuAction(ctx: Context, action: TMenuAction): Promise<void> {
   if (action === 'admin') {
     await showAdminPanel(ctx);
+    return;
+  }
+
+  if (action === 'schedules') {
+    await showScheduleMenu(ctx);
     return;
   }
 
