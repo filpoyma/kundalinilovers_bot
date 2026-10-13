@@ -31,6 +31,29 @@ export interface IAdminScheduleOverview {
   sections: IAdminOfflineSection[] | IAdminOnlineSection[];
 }
 
+export interface IScheduleSlotDraft {
+  id?: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  title: string;
+}
+
+export interface IScheduleSectionDraft {
+  id?: string;
+  fields: Record<string, string>;
+  slots: IScheduleSlotDraft[];
+}
+
+export interface IScheduleDraft {
+  title: string;
+  sections: IScheduleSectionDraft[];
+}
+
+export type TSaveScheduleResult =
+  | { ok: true; schedule?: IScheduleDraft }
+  | { ok: false; message: string; schedule?: IScheduleDraft };
+
 export interface ITimezoneOption {
   id: string;
   label: string;

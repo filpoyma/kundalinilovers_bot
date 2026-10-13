@@ -127,11 +127,12 @@ export async function createOfflineSection(data: {
   country: string;
   city: string;
   address: string;
-}): Promise<void> {
-  await adminFetch("/admin/schedule/offline/sections", {
+}): Promise<string> {
+  const created = await adminFetch<{ id: string }>("/admin/schedule/offline/sections", {
     method: "POST",
     body: JSON.stringify(data),
   });
+  return created.id;
 }
 
 export async function updateOfflineSection(
@@ -151,11 +152,12 @@ export async function deleteSection(type: TScheduleType, id: string): Promise<vo
 export async function createOnlineSection(data: {
   platform: string;
   link: string;
-}): Promise<void> {
-  await adminFetch("/admin/schedule/online/sections", {
+}): Promise<string> {
+  const created = await adminFetch<{ id: string }>("/admin/schedule/online/sections", {
     method: "POST",
     body: JSON.stringify(data),
   });
+  return created.id;
 }
 
 export async function updateOnlineSection(
