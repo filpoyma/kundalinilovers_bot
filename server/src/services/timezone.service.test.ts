@@ -1,6 +1,6 @@
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { DateTime, Settings } from 'luxon';
+import { Settings } from 'luxon';
 import { formatSlotForUser, getNextClassOccurrence } from './timezone.service.js';
 
 describe('getNextClassOccurrence', () => {

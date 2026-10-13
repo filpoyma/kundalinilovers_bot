@@ -8,8 +8,6 @@ import {
 import {
   createOfflineLocation,
   createOnlinePlatform,
-  deleteOfflineLocation,
-  deleteOnlinePlatform,
   getOfflineLocationById,
   getOnlinePlatformById,
   updateOfflineLocation,
@@ -17,11 +15,14 @@ import {
   formatOfflineLocationHeader,
   formatOnlinePlatformHeader,
 } from '../../../services/schedule.service';
+import {
+  adminDeleteOfflineSection,
+  adminDeleteOnlineSection,
+} from '../../../services/admin-schedule.service';
 import { ADMIN_CB_PATTERNS, parseTypeCode } from '../../utils/adminCallbacks';
 import type { TScheduleType } from '../../../types/schedule.types';
 import { askPrefilledInput, replyAndRemoveInputKeyboard } from '../../utils/prefilledInput';
 import { requireAdmin } from './requireAdmin';
-import { deactivateSubscriptionsForLocation } from '../../../services/reminder.service';
 import { buildSectionMenu } from './views/sectionMenu';
 import { showSectionsList } from './views/sectionsList';
 import { parseObjectId } from '../../../utils/parseObjectId';
@@ -98,10 +99,9 @@ export function registerAdminSectionsHandler(bot: Bot): void {
     }
 
     if (type === 'offline') {
-      await deactivateSubscriptionsForLocation(objectId);
-      await deleteOfflineLocation(objectId);
+      await adminDeleteOfflineSection(objectId);
     } else {
-      await deleteOnlinePlatform(objectId);
+      await adminDeleteOnlineSection(objectId);
     }
 
     await showSectionsList(ctx, type);

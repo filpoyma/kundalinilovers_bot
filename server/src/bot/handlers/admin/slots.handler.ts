@@ -8,15 +8,12 @@ import {
 import {
   getAllOfflineLocations,
   getAllOnlinePlatforms,
-  addSlotToOfflineLocation,
   addSlotToOnlinePlatform,
   findOfflineLocationBySlotId,
   findOnlinePlatformBySlotId,
   getOfflineLocationById,
   getOnlinePlatformById,
-  deleteOfflineSlot,
   deleteOnlineSlot,
-  updateOfflineSlot,
   updateOnlineSlot,
   formatOfflineLocationHeader,
   formatSlotLine,
@@ -27,7 +24,11 @@ import type { TScheduleType } from '../../../types/schedule.types';
 import { DAY_INPUT_HINT, parseDayOfWeek, dayOfWeekToInputValue } from '../../../types/schedule.types';
 import { askPrefilledInput, replyAndRemoveInputKeyboard } from '../../utils/prefilledInput';
 import { requireAdmin } from './requireAdmin';
-import { removeJobsForSlot, rescheduleJobsForLocation } from '../../../services/reminder.service';
+import {
+  adminAddOfflineSlot,
+  adminDeleteOfflineSlot,
+  adminUpdateOfflineSlot,
+} from '../../../services/admin-schedule.service';
 import { buildSlotsList } from './views/slotsList';
 import { parseObjectId } from '../../../utils/parseObjectId';
 import { replyInvalidAdminLink } from '../../utils/invalidAdminLink';
@@ -109,9 +110,7 @@ export function registerAdminSlotsHandler(bot: Bot): void {
         return;
       }
       parentId = location._id.toString();
-      await removeJobsForSlot(slotObjectId);
-      await deleteOfflineSlot(location._id, slotObjectId);
-      await rescheduleJobsForLocation(location._id);
+      await adminDeleteOfflineSlot(location._id, slotObjectId);
     } else {
       const platform = await findOnlinePlatformBySlotId(slotObjectId);
       if (!platform) {
@@ -298,8 +297,7 @@ export async function handleSlotTextMessage(
       };
 
       if (session.scheduleType === 'offline') {
-        await addSlotToOfflineLocation(parentId, slotPayload);
-        await rescheduleJobsForLocation(parentId);
+        await adminAddOfflineSlot(parentId, slotPayload);
       } else {
         await addSlotToOnlinePlatform(parentId, slotPayload);
       }
@@ -422,8 +420,7 @@ export async function handleSlotTextMessage(
       };
 
       if (session.scheduleType === 'offline') {
-        await updateOfflineSlot(parentId, slotObjectId, slotPayload);
-        await rescheduleJobsForLocation(parentId);
+        await adminUpdateOfflineSlot(parentId, slotObjectId, slotPayload);
       } else {
         await updateOnlineSlot(parentId, slotObjectId, slotPayload);
       }

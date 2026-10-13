@@ -6,14 +6,10 @@ import {
   setAdminSession,
   type TAdminFlow,
 } from '../../session/adminSession';
-import {
-  getSchedulePageTitle,
-  upsertSchedulePageTitle,
-  upsertSchedulePageTimezone,
-} from '../../../services/schedule.service';
+import { getSchedulePageTitle, upsertSchedulePageTitle } from '../../../services/schedule.service';
+import { adminSetScheduleTimezone } from '../../../services/admin-schedule.service';
 import { formatSchedule } from '../../utils/formatSchedule';
 import { getScheduleTimezone, getTimezoneLabel, isValidTimezone } from '../../../services/timezone.service';
-import { refreshAllReminderJobs } from '../../../services/reminder.service';
 import { requireAdmin } from './requireAdmin';
 
 export function registerAdminScheduleHandler(bot: Bot): void {
@@ -82,9 +78,7 @@ export function registerAdminScheduleHandler(bot: Bot): void {
       return;
     }
 
-    await upsertSchedulePageTimezone('offline', timezone);
-    await upsertSchedulePageTimezone('online', timezone);
-    await refreshAllReminderJobs();
+    const label = await adminSetScheduleTimezone(timezone);
 
     try {
       await ctx.deleteMessage();
@@ -92,7 +86,7 @@ export function registerAdminScheduleHandler(bot: Bot): void {
       // Message may already be deleted.
     }
 
-    await ctx.reply(`Таймзона для расписания обновлена: ${getTimezoneLabel(timezone)}`, {
+    await ctx.reply(`Таймзона для расписания обновлена: ${label}`, {
       reply_markup: adminMenuKeyboard(),
     });
   });
