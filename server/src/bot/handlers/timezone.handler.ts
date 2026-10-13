@@ -69,7 +69,7 @@ export function registerTimezoneHandler(bot: Bot): void {
   bot.callbackQuery('tz:cancel', async ctx => {
     await ctx.answerCallbackQuery();
     if (ctx.from) {
-      clearPendingMenuAction(ctx.from.id);
+      await clearPendingMenuAction(ctx.from.id);
     }
 
     try {

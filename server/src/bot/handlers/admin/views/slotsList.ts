@@ -1,4 +1,3 @@
-import { Types } from 'mongoose';
 import {
   adminScheduleKeyboard,
   slotsListKeyboard,
@@ -11,6 +10,7 @@ import {
   formatSlotLine,
 } from '../../../../services/schedule.service';
 import type { TScheduleType } from '../../../../types/schedule.types';
+import { parseObjectId } from '../../../../utils/parseObjectId';
 
 export async function buildSlotsList(
   type: TScheduleType,
@@ -19,8 +19,13 @@ export async function buildSlotsList(
   text: string;
   keyboard: ReturnType<typeof slotsListKeyboard> | ReturnType<typeof adminScheduleKeyboard>;
 }> {
+  const parentObjectId = parseObjectId(parentId);
+  if (!parentObjectId) {
+    return { text: 'Секция не найдена.', keyboard: adminScheduleKeyboard(type) };
+  }
+
   if (type === 'offline') {
-    const location = await getOfflineLocationById(new Types.ObjectId(parentId));
+    const location = await getOfflineLocationById(parentObjectId);
     if (!location) {
       return { text: 'Секция не найдена.', keyboard: adminScheduleKeyboard(type) };
     }
@@ -44,7 +49,7 @@ export async function buildSlotsList(
     };
   }
 
-  const platform = await getOnlinePlatformById(new Types.ObjectId(parentId));
+  const platform = await getOnlinePlatformById(parentObjectId);
   if (!platform) {
     return { text: 'Секция не найдена.', keyboard: adminScheduleKeyboard(type) };
   }

@@ -1,5 +1,5 @@
 import type { Bot } from 'grammy';
-import logger from '../config/logger';
+import logger, { logError } from '../config/logger';
 import { telegramWebhookUrl, telegramWebhookSecret, isWebhookMode } from '../config/env';
 import { getBot } from './instance';
 
@@ -18,11 +18,16 @@ export async function startBot(bot: Bot): Promise<void> {
 
   pollingStarted = true;
 
-  await bot.start({
-    onStart: (botInfo) => {
-      logger.info(`Telegram bot @${botInfo.username} started (long polling)`);
-    },
-  });
+  void bot
+    .start({
+      onStart: botInfo => {
+        logger.info(`Telegram bot @${botInfo.username} started (long polling)`);
+      },
+    })
+    .catch(error => {
+      logError('Telegram long polling failed', error);
+      process.exit(1);
+    });
 }
 
 export async function registerWebhook(): Promise<void> {
@@ -30,12 +35,16 @@ export async function registerWebhook(): Promise<void> {
     throw new Error('TELEGRAM_WEBHOOK_URL is not set in environment variables');
   }
 
+  if (!telegramWebhookSecret) {
+    throw new Error('TELEGRAM_WEBHOOK_SECRET is required when TELEGRAM_WEBHOOK_URL is set');
+  }
+
   const bot = getBot();
   const me = await bot.api.getMe();
 
   await bot.api.setWebhook(telegramWebhookUrl, {
     secret_token: telegramWebhookSecret,
-    drop_pending_updates: true,
+    drop_pending_updates: false,
   });
 
   logger.info(`Telegram bot @${me.username} webhook registered: ${telegramWebhookUrl}`);
@@ -43,8 +52,6 @@ export async function registerWebhook(): Promise<void> {
 
 export async function stopBot(bot: Bot): Promise<void> {
   if (isWebhookMode) {
-    await bot.api.deleteWebhook({ drop_pending_updates: false });
-    logger.info('Telegram webhook removed');
     return;
   }
 
@@ -58,6 +65,9 @@ export async function startTelegramBot(): Promise<void> {
   const bot = getBot();
 
   if (isWebhookMode) {
+    if (!telegramWebhookSecret) {
+      throw new Error('TELEGRAM_WEBHOOK_SECRET is required when TELEGRAM_WEBHOOK_URL is set');
+    }
     await registerWebhook();
     return;
   }

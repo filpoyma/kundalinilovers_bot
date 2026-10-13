@@ -1,5 +1,8 @@
-import { telegramAdmins } from '../../config/env';
-
 export function isAdmin(telegramId: number): boolean {
-  return telegramAdmins.includes(telegramId);
+  const admins = (process.env.TELEGRAM_ADMINS ?? '')
+    .split(',')
+    .map(id => Number(id.trim()))
+    .filter(Boolean);
+
+  return admins.includes(telegramId);
 }

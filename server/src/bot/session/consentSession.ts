@@ -1,22 +1,22 @@
 import type { Context } from 'grammy';
+import {
+  clearConsentMessages,
+  getConsentMessages,
+  pushConsentMessage,
+} from './adminSession';
 
-type TConsentMessage = {
-  chatId: number;
-  messageId: number;
-};
-
-const consentMessages = new Map<number, TConsentMessage[]>();
-
-export function trackConsentMessage(userId: number, chatId: number, messageId: number): void {
-  const messages = consentMessages.get(userId) ?? [];
-  messages.push({ chatId, messageId });
-  consentMessages.set(userId, messages);
+export async function trackConsentMessage(
+  userId: number,
+  chatId: number,
+  messageId: number,
+): Promise<void> {
+  await pushConsentMessage(userId, chatId, messageId);
 }
 
 export async function deleteConsentMessages(ctx: Context): Promise<void> {
   if (!ctx.from) return;
 
-  const messages = consentMessages.get(ctx.from.id) ?? [];
+  const messages = await getConsentMessages(ctx.from.id);
   await Promise.all(
     messages.map(async ({ chatId, messageId }) => {
       try {
@@ -27,7 +27,7 @@ export async function deleteConsentMessages(ctx: Context): Promise<void> {
     }),
   );
 
-  consentMessages.delete(ctx.from.id);
+  await clearConsentMessages(ctx.from.id);
 }
 
 export async function deleteCallbackMessage(ctx: Context): Promise<void> {

@@ -16,7 +16,7 @@ const logger = winston.createLogger({
     timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     logFormat,
   ),
-  defaultMeta: { service: 'goldzen-server' },
+  defaultMeta: { service: 'kundalinilovers-server' },
   transports: [
     new winston.transports.File({
       filename: path.join('logs', 'error.log'),

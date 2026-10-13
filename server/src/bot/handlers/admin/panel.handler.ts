@@ -7,7 +7,7 @@ export function registerAdminPanelHandler(bot: Bot): void {
   bot.callbackQuery('admin:panel', async ctx => {
     await ctx.answerCallbackQuery();
     if (!requireAdmin(ctx)) return;
-    clearAdminSession(ctx.from!.id);
+    await clearAdminSession(ctx.from!.id);
     await ctx.editMessageText('Админ-панель', { reply_markup: adminMenuKeyboard() });
   });
 }

@@ -3,6 +3,7 @@ import { DateTime } from 'luxon';
 import type { Types } from 'mongoose';
 import ClassReminderJob from '../models/class-reminder-job.model';
 import ClassReminderSubscription from '../models/class-reminder-subscription.model';
+import type { IClassReminderJobDocument } from '../models/class-reminder-job.model';
 import type { IOfflineLocationDocument } from '../models';
 import type { IScheduleSlot } from '../types/schedule.types';
 import { formatOfflineLocationHeaderHtml } from '../bot/utils/formatOfflineLocationHeader';
@@ -15,7 +16,12 @@ import {
   getScheduleTimezone,
 } from './timezone.service';
 import { findUserByTelegramId } from './user.service';
+import { formatReminderLeadPhrase } from '../utils/reminderLead';
+import { getReminderBackoffMinutes } from '../utils/reminderBackoff';
 import logger from '../config/logger';
+
+const JOB_LOCK_MS = 5 * 60 * 1000;
+const MAX_JOBS_PER_RUN = 50;
 
 let onJobsChanged: (() => void) | undefined;
 
@@ -27,15 +33,14 @@ function notifyJobsChanged(): void {
   onJobsChanged?.();
 }
 
-async function createJobForSlot(
+async function upsertJobForClassStart(
   telegramId: number,
   locationId: Types.ObjectId,
   slot: IScheduleSlot,
-  scheduleTimezone: string,
+  classStart: DateTime,
 ): Promise<void> {
   if (!slot._id) return;
 
-  const classStart = getNextClassOccurrence(slot.dayOfWeek, slot.startTime, scheduleTimezone);
   const remindAt = getReminderAt(classStart);
 
   await ClassReminderJob.findOneAndUpdate(
@@ -46,14 +51,28 @@ async function createJobForSlot(
       sentAt: { $exists: false },
     },
     {
-      telegramId,
-      locationId,
-      slotId: slot._id,
-      classStartsAt: classStart.toJSDate(),
-      remindAt: remindAt.toJSDate(),
+      $set: {
+        telegramId,
+        locationId,
+        slotId: slot._id,
+        classStartsAt: classStart.toJSDate(),
+        remindAt: remindAt.toJSDate(),
+        attempts: 0,
+      },
+      $unset: { lockedUntil: '' },
     },
     { upsert: true, new: true },
   );
+}
+
+async function createJobForSlot(
+  telegramId: number,
+  locationId: Types.ObjectId,
+  slot: IScheduleSlot,
+  scheduleTimezone: string,
+): Promise<void> {
+  const classStart = getNextClassOccurrence(slot.dayOfWeek, slot.startTime, scheduleTimezone);
+  await upsertJobForClassStart(telegramId, locationId, slot, classStart);
 }
 
 async function scheduleJobsForSubscription(
@@ -70,6 +89,68 @@ async function scheduleJobsForSubscription(
   for (const slot of location.slots) {
     await createJobForSlot(telegramId, location._id, slot, scheduleTimezone);
   }
+}
+
+async function claimNextDueJob(now: Date): Promise<IClassReminderJobDocument | null> {
+  const lockUntil = new Date(now.getTime() + JOB_LOCK_MS);
+
+  return ClassReminderJob.findOneAndUpdate(
+    {
+      remindAt: { $lte: now },
+      sentAt: { $exists: false },
+      $or: [
+        { lockedUntil: { $exists: false } },
+        { lockedUntil: null },
+        { lockedUntil: { $lte: now } },
+      ],
+    },
+    { $set: { lockedUntil: lockUntil } },
+    { sort: { remindAt: 1 }, new: true },
+  );
+}
+
+async function completeJobAndScheduleNext(
+  job: IClassReminderJobDocument,
+  slot: IScheduleSlot,
+  sentAt: Date,
+): Promise<void> {
+  job.sentAt = sentAt;
+  await job.save();
+
+  const nextClassStart = DateTime.fromJSDate(job.classStartsAt).plus({ weeks: 1 });
+  await upsertJobForClassStart(job.telegramId, job.locationId, slot, nextClassStart);
+}
+
+function buildReminderMessage(
+  location: IOfflineLocationDocument,
+  slot: IScheduleSlot,
+  classStartsAt: Date,
+  scheduleTimezone: string,
+  userTimezone?: string,
+): string {
+  const classStart = DateTime.fromJSDate(classStartsAt);
+  const lead = formatReminderLeadPhrase(classStart, scheduleTimezone);
+  const timeText = formatClassReminderTime(classStart, scheduleTimezone, userTimezone);
+  const header = formatOfflineLocationHeaderHtml(location);
+
+  return `${lead}занятие «${escapeTelegramHtml(slot.title)}»\n📍 ${header}\n🕐 ${escapeTelegramHtml(timeText)}`;
+}
+
+async function deferJobAfterSendFailure(
+  job: IClassReminderJobDocument,
+  now: Date,
+): Promise<void> {
+  const attempts = (job.attempts ?? 0) + 1;
+  const backoffMinutes = getReminderBackoffMinutes(attempts);
+  const remindAt = new Date(now.getTime() + backoffMinutes * 60 * 1000);
+
+  await ClassReminderJob.updateOne(
+    { _id: job._id },
+    {
+      $set: { attempts, remindAt },
+      $unset: { lockedUntil: '' },
+    },
+  );
 }
 
 export async function isSubscribedToLocation(
@@ -152,57 +233,14 @@ export async function deactivateSubscriptionsForLocation(
   notifyJobsChanged();
 }
 
-async function buildReminderMessage(
-  location: IOfflineLocationDocument,
-  slot: IScheduleSlot,
-  classStartsAt: Date,
-  scheduleTimezone: string,
-  userTimezone?: string,
-): Promise<string> {
-  const classStart = DateTime.fromJSDate(classStartsAt);
-  const timeText = formatClassReminderTime(classStart, scheduleTimezone, userTimezone);
-  const header = formatOfflineLocationHeaderHtml(location);
-
-  return `Завтра занятие «${escapeTelegramHtml(slot.title)}»\n📍 ${header}\n🕐 ${escapeTelegramHtml(timeText)}`;
-}
-
-async function scheduleNextJob(
-  telegramId: number,
-  locationId: Types.ObjectId,
-  slot: IScheduleSlot,
-  scheduleTimezone: string,
-): Promise<void> {
-  if (!slot._id) return;
-
-  const nextClassStart = getNextClassOccurrence(
-    slot.dayOfWeek,
-    slot.startTime,
-    scheduleTimezone,
-  ).plus({ weeks: 1 });
-
-  const remindAt = getReminderAt(nextClassStart);
-
-  await ClassReminderJob.create({
-    telegramId,
-    locationId,
-    slotId: slot._id,
-    classStartsAt: nextClassStart.toJSDate(),
-    remindAt: remindAt.toJSDate(),
-  });
-}
-
 export async function processDueReminders(bot: Bot): Promise<void> {
   const now = new Date();
-  const dueJobs = await ClassReminderJob.find({
-    remindAt: { $lte: now },
-    sentAt: { $exists: false },
-  }).limit(50);
-
-  if (dueJobs.length === 0) return;
-
   const scheduleTimezone = await getScheduleTimezone();
 
-  for (const job of dueJobs) {
+  for (let processed = 0; processed < MAX_JOBS_PER_RUN; processed += 1) {
+    const job = await claimNextDueJob(now);
+    if (!job) return;
+
     const location = await getOfflineLocationById(job.locationId);
     if (!location || !location.isActive) {
       await ClassReminderJob.deleteOne({ _id: job._id });
@@ -230,14 +268,12 @@ export async function processDueReminders(bot: Bot): Promise<void> {
     const nowDt = DateTime.now();
 
     if (classStartsAt <= nowDt) {
-      job.sentAt = now;
-      await job.save();
-      await scheduleNextJob(job.telegramId, job.locationId, slot, scheduleTimezone);
+      await completeJobAndScheduleNext(job, slot, now);
       continue;
     }
 
     const user = await findUserByTelegramId(job.telegramId);
-    const message = await buildReminderMessage(
+    const message = buildReminderMessage(
       location,
       slot,
       job.classStartsAt,
@@ -250,9 +286,7 @@ export async function processDueReminders(bot: Bot): Promise<void> {
         parse_mode: 'HTML',
         link_preview_options: { is_disabled: true },
       });
-      job.sentAt = now;
-      await job.save();
-      await scheduleNextJob(job.telegramId, job.locationId, slot, scheduleTimezone);
+      await completeJobAndScheduleNext(job, slot, now);
     } catch (error) {
       const description =
         error && typeof error === 'object' && 'description' in error
@@ -266,6 +300,7 @@ export async function processDueReminders(bot: Bot): Promise<void> {
       }
 
       logger.error('Failed to send class reminder', { jobId: job._id, error });
+      await deferJobAfterSendFailure(job, now);
     }
   }
 }

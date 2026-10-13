@@ -19,7 +19,7 @@ export function registerAdminHandler(bot: Bot): void {
       return next();
     }
 
-    const session = getAdminSession(ctx.from.id);
+    const session = await getAdminSession(ctx.from.id);
     const text = ctx.message.text.trim();
 
     if (session.step === 'idle') {

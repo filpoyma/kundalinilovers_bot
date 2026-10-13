@@ -1,5 +1,4 @@
 import type { Bot, Context } from 'grammy';
-import { Types } from 'mongoose';
 import { adminScheduleKeyboard } from '../../keyboards/admin.keyboard';
 import {
   clearAdminSession,
@@ -28,31 +27,22 @@ import type { TScheduleType } from '../../../types/schedule.types';
 import { DAY_INPUT_HINT, parseDayOfWeek, dayOfWeekToInputValue } from '../../../types/schedule.types';
 import { askPrefilledInput, replyAndRemoveInputKeyboard } from '../../utils/prefilledInput';
 import { requireAdmin } from './requireAdmin';
-import {
-  removeJobsForSlot,
-  rescheduleJobsForLocation,
-} from '../../../services/reminder.service';
+import { removeJobsForSlot, rescheduleJobsForLocation } from '../../../services/reminder.service';
 import { buildSlotsList } from './views/slotsList';
+import { parseObjectId } from '../../../utils/parseObjectId';
+import { replyInvalidAdminLink } from '../../utils/invalidAdminLink';
+import { isValidTimeHHmm } from '../../../utils/timeFormat';
 
 const SLOT_STEPS = new Set<TAdminFlow['step']>([
-  'add_offline_slot',
-  'add_offline_slot_day',
-  'add_offline_slot_start',
-  'add_offline_slot_end',
-  'add_offline_slot_title',
-  'add_online_slot',
-  'add_online_slot_day',
-  'add_online_slot_start',
-  'add_online_slot_end',
-  'add_online_slot_title',
-  'edit_offline_slot_day',
-  'edit_offline_slot_start',
-  'edit_offline_slot_end',
-  'edit_offline_slot_title',
-  'edit_online_slot_day',
-  'edit_online_slot_start',
-  'edit_online_slot_end',
-  'edit_online_slot_title',
+  'add_slot_pick',
+  'add_slot_day',
+  'add_slot_start',
+  'add_slot_end',
+  'add_slot_title',
+  'edit_slot_day',
+  'edit_slot_start',
+  'edit_slot_end',
+  'edit_slot_title',
 ]);
 
 export function registerAdminSlotsHandler(bot: Bot): void {
@@ -70,7 +60,7 @@ export function registerAdminSlotsHandler(bot: Bot): void {
       const list = locations
         .map((loc, i) => `${i + 1}. ${formatOfflineLocationHeader(loc)}`)
         .join('\n');
-      setAdminSession(ctx.from!.id, { step: 'add_offline_slot' });
+      await setAdminSession(ctx.from!.id, { step: 'add_slot_pick', scheduleType: 'offline' });
       await ctx.reply(`Выберите секцию (введите номер):\n${list}`);
     } else {
       const platforms = await getAllOnlinePlatforms();
@@ -79,7 +69,7 @@ export function registerAdminSlotsHandler(bot: Bot): void {
         return;
       }
       const list = platforms.map((p, i) => `${i + 1}. ${p.platform}`).join('\n');
-      setAdminSession(ctx.from!.id, { step: 'add_online_slot' });
+      await setAdminSession(ctx.from!.id, { step: 'add_slot_pick', scheduleType: 'online' });
       await ctx.reply(`Выберите секцию (введите номер):\n${list}`);
     }
   });
@@ -90,6 +80,11 @@ export function registerAdminSlotsHandler(bot: Bot): void {
 
     const type = parseTypeCode(ctx.match![1]);
     const parentId = ctx.match![2];
+    if (!parseObjectId(parentId)) {
+      await replyInvalidAdminLink(ctx);
+      return;
+    }
+
     const { text, keyboard } = await buildSlotsList(type, parentId);
     await ctx.editMessageText(text, { reply_markup: keyboard });
   });
@@ -100,26 +95,31 @@ export function registerAdminSlotsHandler(bot: Bot): void {
 
     const type = parseTypeCode(ctx.match![1]);
     const slotId = ctx.match![2];
+    const slotObjectId = parseObjectId(slotId);
+    if (!slotObjectId) {
+      await replyInvalidAdminLink(ctx);
+      return;
+    }
 
     let parentId: string;
     if (type === 'offline') {
-      const location = await findOfflineLocationBySlotId(new Types.ObjectId(slotId));
+      const location = await findOfflineLocationBySlotId(slotObjectId);
       if (!location) {
         await ctx.reply('Слот не найден.');
         return;
       }
       parentId = location._id.toString();
-      await removeJobsForSlot(new Types.ObjectId(slotId));
-      await deleteOfflineSlot(location._id, new Types.ObjectId(slotId));
+      await removeJobsForSlot(slotObjectId);
+      await deleteOfflineSlot(location._id, slotObjectId);
       await rescheduleJobsForLocation(location._id);
     } else {
-      const platform = await findOnlinePlatformBySlotId(new Types.ObjectId(slotId));
+      const platform = await findOnlinePlatformBySlotId(slotObjectId);
       if (!platform) {
         await ctx.reply('Слот не найден.');
         return;
       }
       parentId = platform._id.toString();
-      await deleteOnlineSlot(platform._id, new Types.ObjectId(slotId));
+      await deleteOnlineSlot(platform._id, slotObjectId);
     }
 
     const { text, keyboard } = await buildSlotsList(type, parentId);
@@ -132,19 +132,25 @@ export function registerAdminSlotsHandler(bot: Bot): void {
 
     const type = parseTypeCode(ctx.match![1]);
     const slotId = ctx.match![2];
+    const slotObjectId = parseObjectId(slotId);
+    if (!slotObjectId) {
+      await replyInvalidAdminLink(ctx);
+      return;
+    }
 
     if (type === 'offline') {
-      const location = await findOfflineLocationBySlotId(new Types.ObjectId(slotId));
+      const location = await findOfflineLocationBySlotId(slotObjectId);
       const slot = location ? findSlotById(location.slots, slotId) : undefined;
-      if (!slot) {
+      if (!slot || !location) {
         await ctx.reply('Слот не найден.');
         return;
       }
 
-      const parentId = location!._id.toString();
-      setAdminSession(ctx.from!.id, {
-        step: 'edit_offline_slot_day',
-        locationId: parentId,
+      const parentId = location._id.toString();
+      await setAdminSession(ctx.from!.id, {
+        step: 'edit_slot_day',
+        scheduleType: 'offline',
+        parentId,
         slotId,
       });
       await askPrefilledInput(
@@ -155,15 +161,20 @@ export function registerAdminSlotsHandler(bot: Bot): void {
       return;
     }
 
-    const platform = await findOnlinePlatformBySlotId(new Types.ObjectId(slotId));
+    const platform = await findOnlinePlatformBySlotId(slotObjectId);
     const slot = platform ? findSlotById(platform.slots, slotId) : undefined;
-    if (!slot) {
+    if (!slot || !platform) {
       await ctx.reply('Слот не найден.');
       return;
     }
 
-    const parentId = platform!._id.toString();
-    setAdminSession(ctx.from!.id, { step: 'edit_online_slot_day', platformId: parentId, slotId });
+    const parentId = platform._id.toString();
+    await setAdminSession(ctx.from!.id, {
+      step: 'edit_slot_day',
+      scheduleType: 'online',
+      parentId,
+      slotId,
+    });
     await askPrefilledInput(
       ctx,
       `Редактирование слота:\n${formatSlotLine(slot)}\n\nВведите день недели (${DAY_INPUT_HINT}):`,
@@ -182,81 +193,28 @@ export async function handleSlotTextMessage(
   }
 
   switch (session.step) {
-    case 'add_offline_slot': {
-      const locations = await getAllOfflineLocations();
-      const index = Number(text) - 1;
+    case 'add_slot_pick': {
+      if (session.scheduleType === 'offline') {
+        const locations = await getAllOfflineLocations();
+        const index = Number(text) - 1;
 
-      if (Number.isNaN(index) || index < 0 || index >= locations.length) {
-        await ctx.reply('Секция не найдена. Введите номер из списка.');
-        return true;
+        if (Number.isNaN(index) || index < 0 || index >= locations.length) {
+          await ctx.reply('Секция не найдена. Введите номер из списка.');
+          return true;
+        }
+
+        const location = locations[index];
+        await setAdminSession(ctx.from.id, {
+          step: 'add_slot_day',
+          scheduleType: 'offline',
+          parentId: location._id.toString(),
+        });
+        await ctx.reply(
+          `Секция: ${formatOfflineLocationHeader(location)}\n\nВведите день недели (${DAY_INPUT_HINT}):`,
+        );
+        break;
       }
 
-      const location = locations[index];
-      setAdminSession(ctx.from.id, {
-        step: 'add_offline_slot_day',
-        locationId: location._id.toString(),
-      });
-      await ctx.reply(
-        `Секция: ${formatOfflineLocationHeader(location)}\n\nВведите день недели (${DAY_INPUT_HINT}):`,
-      );
-      break;
-    }
-
-    case 'add_offline_slot_day': {
-      const day = parseDayOfWeek(text);
-      if (day === null) {
-        await ctx.reply(`Неверный день. Используйте: ${DAY_INPUT_HINT}.`);
-        return true;
-      }
-      setAdminSession(ctx.from.id, {
-        step: 'add_offline_slot_start',
-        locationId: session.locationId,
-        dayOfWeek: day,
-      });
-      await ctx.reply('Введите время начала (например: 19:00):');
-      break;
-    }
-
-    case 'add_offline_slot_start': {
-      setAdminSession(ctx.from.id, {
-        step: 'add_offline_slot_end',
-        locationId: session.locationId,
-        dayOfWeek: session.dayOfWeek,
-        startTime: text,
-      });
-      await ctx.reply('Введите время окончания (например: 20:00):');
-      break;
-    }
-
-    case 'add_offline_slot_end': {
-      setAdminSession(ctx.from.id, {
-        step: 'add_offline_slot_title',
-        locationId: session.locationId,
-        dayOfWeek: session.dayOfWeek,
-        startTime: session.startTime,
-        endTime: text,
-      });
-      await ctx.reply('Введите название занятия:');
-      break;
-    }
-
-    case 'add_offline_slot_title': {
-      await addSlotToOfflineLocation(new Types.ObjectId(session.locationId), {
-        dayOfWeek: session.dayOfWeek,
-        startTime: session.startTime,
-        endTime: session.endTime,
-        title: text,
-        sortOrder: 0,
-      });
-      await rescheduleJobsForLocation(session.locationId);
-      clearAdminSession(ctx.from.id);
-      await ctx.reply(`Слот добавлен: ${text}`, {
-        reply_markup: adminScheduleKeyboard('offline'),
-      });
-      break;
-    }
-
-    case 'add_online_slot': {
       const platforms = await getAllOnlinePlatforms();
       const index = Number(text) - 1;
 
@@ -266,80 +224,117 @@ export async function handleSlotTextMessage(
       }
 
       const platform = platforms[index];
-      setAdminSession(ctx.from.id, {
-        step: 'add_online_slot_day',
-        platformId: platform._id.toString(),
+      await setAdminSession(ctx.from.id, {
+        step: 'add_slot_day',
+        scheduleType: 'online',
+        parentId: platform._id.toString(),
       });
       await ctx.reply(`Секция: ${platform.platform}\n\nВведите день недели (${DAY_INPUT_HINT}):`);
       break;
     }
 
-    case 'add_online_slot_day': {
+    case 'add_slot_day': {
       const day = parseDayOfWeek(text);
       if (day === null) {
         await ctx.reply(`Неверный день. Используйте: ${DAY_INPUT_HINT}.`);
         return true;
       }
-      setAdminSession(ctx.from.id, {
-        step: 'add_online_slot_start',
-        platformId: session.platformId,
+      await setAdminSession(ctx.from.id, {
+        step: 'add_slot_start',
+        scheduleType: session.scheduleType,
+        parentId: session.parentId,
         dayOfWeek: day,
       });
-      await ctx.reply('Введите время начала (например: 10:00):');
+      await ctx.reply('Введите время начала (например: 19:00):');
       break;
     }
 
-    case 'add_online_slot_start': {
-      setAdminSession(ctx.from.id, {
-        step: 'add_online_slot_end',
-        platformId: session.platformId,
+    case 'add_slot_start': {
+      if (!isValidTimeHHmm(text)) {
+        await ctx.reply('Неверное время. Используйте формат ЧЧ:ММ (например: 19:00).');
+        return true;
+      }
+      await setAdminSession(ctx.from.id, {
+        step: 'add_slot_end',
+        scheduleType: session.scheduleType,
+        parentId: session.parentId,
         dayOfWeek: session.dayOfWeek,
-        startTime: text,
+        startTime: text.trim(),
       });
-      await ctx.reply('Введите время окончания (например: 11:00):');
+      await ctx.reply('Введите время окончания (например: 20:00):');
       break;
     }
 
-    case 'add_online_slot_end': {
-      setAdminSession(ctx.from.id, {
-        step: 'add_online_slot_title',
-        platformId: session.platformId,
+    case 'add_slot_end': {
+      if (!isValidTimeHHmm(text)) {
+        await ctx.reply('Неверное время. Используйте формат ЧЧ:ММ (например: 20:00).');
+        return true;
+      }
+      await setAdminSession(ctx.from.id, {
+        step: 'add_slot_title',
+        scheduleType: session.scheduleType,
+        parentId: session.parentId,
         dayOfWeek: session.dayOfWeek,
         startTime: session.startTime,
-        endTime: text,
+        endTime: text.trim(),
       });
       await ctx.reply('Введите название занятия:');
       break;
     }
 
-    case 'add_online_slot_title': {
-      await addSlotToOnlinePlatform(new Types.ObjectId(session.platformId), {
+    case 'add_slot_title': {
+      const parentId = parseObjectId(session.parentId);
+      if (!parentId) {
+        await replyInvalidAdminLink(ctx);
+        return true;
+      }
+
+      const slotPayload = {
         dayOfWeek: session.dayOfWeek,
         startTime: session.startTime,
         endTime: session.endTime,
         title: text,
         sortOrder: 0,
-      });
-      clearAdminSession(ctx.from.id);
+      };
+
+      if (session.scheduleType === 'offline') {
+        await addSlotToOfflineLocation(parentId, slotPayload);
+        await rescheduleJobsForLocation(parentId);
+      } else {
+        await addSlotToOnlinePlatform(parentId, slotPayload);
+      }
+
+      await clearAdminSession(ctx.from.id);
       await ctx.reply(`Слот добавлен: ${text}`, {
-        reply_markup: adminScheduleKeyboard('online'),
+        reply_markup: adminScheduleKeyboard(session.scheduleType),
       });
       break;
     }
 
-    case 'edit_offline_slot_day': {
+    case 'edit_slot_day': {
       const day = parseDayOfWeek(text);
       if (day === null) {
         await ctx.reply(`Неверный день. Используйте: ${DAY_INPUT_HINT}.`);
         return true;
       }
 
-      const location = await getOfflineLocationById(new Types.ObjectId(session.locationId));
-      const slot = location ? findSlotById(location.slots, session.slotId) : undefined;
+      const parentId = parseObjectId(session.parentId);
+      const slotObjectId = parseObjectId(session.slotId);
+      if (!parentId || !slotObjectId) {
+        await replyInvalidAdminLink(ctx);
+        return true;
+      }
 
-      setAdminSession(ctx.from.id, {
-        step: 'edit_offline_slot_start',
-        locationId: session.locationId,
+      const parent =
+        session.scheduleType === 'offline'
+          ? await getOfflineLocationById(parentId)
+          : await getOnlinePlatformById(parentId);
+      const slot = parent ? findSlotById(parent.slots, session.slotId) : undefined;
+
+      await setAdminSession(ctx.from.id, {
+        step: 'edit_slot_start',
+        scheduleType: session.scheduleType,
+        parentId: session.parentId,
         slotId: session.slotId,
         dayOfWeek: day,
       });
@@ -347,122 +342,97 @@ export async function handleSlotTextMessage(
       break;
     }
 
-    case 'edit_offline_slot_start': {
-      const location = await getOfflineLocationById(new Types.ObjectId(session.locationId));
-      const slot = location ? findSlotById(location.slots, session.slotId) : undefined;
-
-      setAdminSession(ctx.from.id, {
-        step: 'edit_offline_slot_end',
-        locationId: session.locationId,
-        slotId: session.slotId,
-        dayOfWeek: session.dayOfWeek,
-        startTime: text,
-      });
-      await askPrefilledInput(ctx, 'Введите время окончания:', slot?.endTime ?? text);
-      break;
-    }
-
-    case 'edit_offline_slot_end': {
-      const location = await getOfflineLocationById(new Types.ObjectId(session.locationId));
-      const slot = location ? findSlotById(location.slots, session.slotId) : undefined;
-
-      setAdminSession(ctx.from.id, {
-        step: 'edit_offline_slot_title',
-        locationId: session.locationId,
-        slotId: session.slotId,
-        dayOfWeek: session.dayOfWeek,
-        startTime: session.startTime,
-        endTime: text,
-      });
-      await askPrefilledInput(ctx, 'Введите название занятия:', slot?.title ?? text);
-      break;
-    }
-
-    case 'edit_offline_slot_title': {
-      await updateOfflineSlot(
-        new Types.ObjectId(session.locationId),
-        new Types.ObjectId(session.slotId),
-        {
-          dayOfWeek: session.dayOfWeek,
-          startTime: session.startTime,
-          endTime: session.endTime,
-          title: text,
-          sortOrder: 0,
-        },
-      );
-      await rescheduleJobsForLocation(session.locationId);
-      clearAdminSession(ctx.from.id);
-      const { text: slotsText, keyboard } = await buildSlotsList('offline', session.locationId);
-      await replyAndRemoveInputKeyboard(ctx, `Слот обновлён: ${text}`);
-      await ctx.reply(slotsText, { reply_markup: keyboard });
-      break;
-    }
-
-    case 'edit_online_slot_day': {
-      const day = parseDayOfWeek(text);
-      if (day === null) {
-        await ctx.reply(`Неверный день. Используйте: ${DAY_INPUT_HINT}.`);
+    case 'edit_slot_start': {
+      if (!isValidTimeHHmm(text)) {
+        await ctx.reply('Неверное время. Используйте формат ЧЧ:ММ (например: 19:00).');
         return true;
       }
 
-      const platform = await getOnlinePlatformById(new Types.ObjectId(session.platformId));
-      const slot = platform ? findSlotById(platform.slots, session.slotId) : undefined;
+      const parentId = parseObjectId(session.parentId);
+      const slotObjectId = parseObjectId(session.slotId);
+      if (!parentId || !slotObjectId) {
+        await replyInvalidAdminLink(ctx);
+        return true;
+      }
 
-      setAdminSession(ctx.from.id, {
-        step: 'edit_online_slot_start',
-        platformId: session.platformId,
-        slotId: session.slotId,
-        dayOfWeek: day,
-      });
-      await askPrefilledInput(ctx, 'Введите время начала:', slot?.startTime ?? text);
-      break;
-    }
+      const parent =
+        session.scheduleType === 'offline'
+          ? await getOfflineLocationById(parentId)
+          : await getOnlinePlatformById(parentId);
+      const slot = parent ? findSlotById(parent.slots, session.slotId) : undefined;
 
-    case 'edit_online_slot_start': {
-      const platform = await getOnlinePlatformById(new Types.ObjectId(session.platformId));
-      const slot = platform ? findSlotById(platform.slots, session.slotId) : undefined;
-
-      setAdminSession(ctx.from.id, {
-        step: 'edit_online_slot_end',
-        platformId: session.platformId,
+      await setAdminSession(ctx.from.id, {
+        step: 'edit_slot_end',
+        scheduleType: session.scheduleType,
+        parentId: session.parentId,
         slotId: session.slotId,
         dayOfWeek: session.dayOfWeek,
-        startTime: text,
+        startTime: text.trim(),
       });
       await askPrefilledInput(ctx, 'Введите время окончания:', slot?.endTime ?? text);
       break;
     }
 
-    case 'edit_online_slot_end': {
-      const platform = await getOnlinePlatformById(new Types.ObjectId(session.platformId));
-      const slot = platform ? findSlotById(platform.slots, session.slotId) : undefined;
+    case 'edit_slot_end': {
+      if (!isValidTimeHHmm(text)) {
+        await ctx.reply('Неверное время. Используйте формат ЧЧ:ММ (например: 20:00).');
+        return true;
+      }
 
-      setAdminSession(ctx.from.id, {
-        step: 'edit_online_slot_title',
-        platformId: session.platformId,
+      const parentId = parseObjectId(session.parentId);
+      const slotObjectId = parseObjectId(session.slotId);
+      if (!parentId || !slotObjectId) {
+        await replyInvalidAdminLink(ctx);
+        return true;
+      }
+
+      const parent =
+        session.scheduleType === 'offline'
+          ? await getOfflineLocationById(parentId)
+          : await getOnlinePlatformById(parentId);
+      const slot = parent ? findSlotById(parent.slots, session.slotId) : undefined;
+
+      await setAdminSession(ctx.from.id, {
+        step: 'edit_slot_title',
+        scheduleType: session.scheduleType,
+        parentId: session.parentId,
         slotId: session.slotId,
         dayOfWeek: session.dayOfWeek,
         startTime: session.startTime,
-        endTime: text,
+        endTime: text.trim(),
       });
       await askPrefilledInput(ctx, 'Введите название занятия:', slot?.title ?? text);
       break;
     }
 
-    case 'edit_online_slot_title': {
-      await updateOnlineSlot(
-        new Types.ObjectId(session.platformId),
-        new Types.ObjectId(session.slotId),
-        {
-          dayOfWeek: session.dayOfWeek,
-          startTime: session.startTime,
-          endTime: session.endTime,
-          title: text,
-          sortOrder: 0,
-        },
+    case 'edit_slot_title': {
+      const parentId = parseObjectId(session.parentId);
+      const slotObjectId = parseObjectId(session.slotId);
+      if (!parentId || !slotObjectId) {
+        await replyInvalidAdminLink(ctx);
+        return true;
+      }
+
+      const slotPayload = {
+        dayOfWeek: session.dayOfWeek,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        title: text,
+        sortOrder: 0,
+      };
+
+      if (session.scheduleType === 'offline') {
+        await updateOfflineSlot(parentId, slotObjectId, slotPayload);
+        await rescheduleJobsForLocation(parentId);
+      } else {
+        await updateOnlineSlot(parentId, slotObjectId, slotPayload);
+      }
+
+      await clearAdminSession(ctx.from.id);
+      const { text: slotsText, keyboard } = await buildSlotsList(
+        session.scheduleType,
+        session.parentId,
       );
-      clearAdminSession(ctx.from.id);
-      const { text: slotsText, keyboard } = await buildSlotsList('online', session.platformId);
       await replyAndRemoveInputKeyboard(ctx, `Слот обновлён: ${text}`);
       await ctx.reply(slotsText, { reply_markup: keyboard });
       break;

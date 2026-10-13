@@ -30,10 +30,10 @@ export async function executeSchedulePendingAction(ctx: Context): Promise<boolea
   const from = ctx.from;
   if (!from) return false;
 
-  const pending = getPendingMenuAction(from.id);
+  const pending = await getPendingMenuAction(from.id);
   if (!pending || !isScheduleMenuAction(pending)) return false;
 
-  clearPendingMenuAction(from.id);
+  await clearPendingMenuAction(from.id);
 
   if (pending === MENU_CALLBACKS.ONLINE_SCHEDULE) {
     await showOnlineSchedule(ctx);

@@ -35,7 +35,7 @@ export function registerAdminScheduleHandler(bot: Bot): void {
     if (!requireAdmin(ctx)) return;
     const type = ctx.match![1] as 'online' | 'offline';
     const currentTitle = await getSchedulePageTitle(type);
-    setAdminSession(ctx.from!.id, { step: 'edit_page_title', scheduleType: type });
+    await setAdminSession(ctx.from!.id, { step: 'edit_page_title', scheduleType: type });
     await ctx.reply(
       `Текущий заголовок: ${currentTitle || '(не задан)'}\n\nВведите новый заголовок страницы (например: «Регулярные классы»):`,
     );
@@ -83,6 +83,7 @@ export function registerAdminScheduleHandler(bot: Bot): void {
     }
 
     await upsertSchedulePageTimezone('offline', timezone);
+    await upsertSchedulePageTimezone('online', timezone);
     await refreshAllReminderJobs();
 
     try {
@@ -107,7 +108,7 @@ export async function handleScheduleTextMessage(
   }
 
   await upsertSchedulePageTitle(session.scheduleType, text);
-  clearAdminSession(ctx.from.id);
+  await clearAdminSession(ctx.from.id);
   await ctx.reply(`Заголовок страницы обновлён: «${text}»`, {
     reply_markup: adminScheduleKeyboard(session.scheduleType),
   });

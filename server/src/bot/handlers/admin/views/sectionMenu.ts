@@ -1,5 +1,5 @@
-import { Types } from 'mongoose';
 import { sectionMenuKeyboard } from '../../../keyboards/admin.keyboard';
+import { parseObjectId } from '../../../../utils/parseObjectId';
 import {
   getOfflineLocationById,
   getOnlinePlatformById,
@@ -15,8 +15,13 @@ export async function buildSectionMenu(
   text: string;
   keyboard: ReturnType<typeof sectionMenuKeyboard>;
 }> {
+  const objectId = parseObjectId(id);
+  if (!objectId) {
+    return { text: 'Секция не найдена.', keyboard: sectionMenuKeyboard(type, id) };
+  }
+
   if (type === 'offline') {
-    const location = await getOfflineLocationById(new Types.ObjectId(id));
+    const location = await getOfflineLocationById(objectId);
     if (!location) {
       return { text: 'Секция не найдена.', keyboard: sectionMenuKeyboard(type, id) };
     }
@@ -27,7 +32,7 @@ export async function buildSectionMenu(
     };
   }
 
-  const platform = await getOnlinePlatformById(new Types.ObjectId(id));
+  const platform = await getOnlinePlatformById(objectId);
   if (!platform) {
     return { text: 'Секция не найдена.', keyboard: sectionMenuKeyboard(type, id) };
   }

@@ -25,7 +25,6 @@ const startServer = async (): Promise<void> => {
       logger.info(`Telegram mode: ${isWebhookMode ? 'webhook' : 'long polling'}`);
     });
 
-    await startTelegramBot();
     setReminderJobsChangedHandler(wakeReminderScheduler);
     startReminderWorker(bot);
 
@@ -58,6 +57,8 @@ const startServer = async (): Promise<void> => {
 
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+    await startTelegramBot();
   } catch (error) {
     logError('Failed to start server', error);
     process.exit(1);

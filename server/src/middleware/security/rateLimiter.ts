@@ -23,15 +23,6 @@ export const generalRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: rateLimitHandler,
-  skip: (req) => req.path === '/api/kundalinilovers-bot/webhook',
-});
-
-export const strictRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 минут
-  limit: 10, // 10 запросов
-  message: ERROR_MESSAGES.TOO_MANY_REQUESTS,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: rateLimitHandler,
+  skip: req => req.path === '/api/kundalinilovers-bot/webhook',
 });
 

@@ -7,6 +7,8 @@ export interface IClassReminderJob {
   classStartsAt: Date;
   remindAt: Date;
   sentAt?: Date;
+  lockedUntil?: Date;
+  attempts: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,11 +23,17 @@ const classReminderJobSchema = new Schema<IClassReminderJobDocument>(
     classStartsAt: { type: Date, required: true },
     remindAt: { type: Date, required: true, index: true },
     sentAt: { type: Date, index: true },
+    lockedUntil: { type: Date },
+    attempts: { type: Number, default: 0 },
   },
   { timestamps: true },
 );
 
 classReminderJobSchema.index({ remindAt: 1, sentAt: 1 });
+classReminderJobSchema.index(
+  { telegramId: 1, locationId: 1, slotId: 1 },
+  { unique: true, partialFilterExpression: { sentAt: { $exists: false } } },
+);
 
 const ClassReminderJob: Model<IClassReminderJobDocument> = model<IClassReminderJobDocument>(
   'ClassReminderJob',

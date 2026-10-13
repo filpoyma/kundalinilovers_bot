@@ -9,10 +9,22 @@ export async function findOrCreateUser(ctx: Context): Promise<IUserDocument> {
 
   const existing = await User.findOne({ telegramId: from.id });
   if (existing) {
-    existing.username = from.username;
-    existing.firstName = from.first_name;
-    existing.lastName = from.last_name;
-    await existing.save();
+    const username = from.username;
+    const firstName = from.first_name;
+    const lastName = from.last_name;
+
+    const changed =
+      existing.username !== username ||
+      existing.firstName !== firstName ||
+      existing.lastName !== lastName;
+
+    if (changed) {
+      existing.username = username;
+      existing.firstName = firstName;
+      existing.lastName = lastName;
+      await existing.save();
+    }
+
     return existing;
   }
 

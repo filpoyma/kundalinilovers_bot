@@ -68,7 +68,7 @@ async function showAdminPanel(ctx: Context): Promise<void> {
     return;
   }
 
-  clearAdminSession(ctx.from.id);
+  await clearAdminSession(ctx.from.id);
   await ctx.reply('Админ-панель', { reply_markup: adminMenuKeyboard() });
 }
 
@@ -89,7 +89,7 @@ async function requireTimezoneForSchedule(
     return;
   }
 
-  setPendingMenuAction(from.id, action);
+  await setPendingMenuAction(from.id, action);
   await sendTimezonePrompt(ctx, 'Для просмотра расписания выберите ваш часовой пояс:');
 }
 
@@ -129,7 +129,7 @@ async function executePendingAction(ctx: Context): Promise<void> {
   const from = ctx.from;
   if (!from) return;
 
-  const pending = getPendingMenuAction(from.id);
+  const pending = await getPendingMenuAction(from.id);
   if (!pending) return;
 
   if (pending === MENU_CALLBACKS.ONLINE_SCHEDULE || pending === MENU_CALLBACKS.OFFLINE_SCHEDULE) {
@@ -143,7 +143,7 @@ async function executePendingAction(ctx: Context): Promise<void> {
     return;
   }
 
-  clearPendingMenuAction(from.id);
+  await clearPendingMenuAction(from.id);
 
   switch (pending) {
     case MENU_CALLBACKS.SERVICES:
@@ -159,7 +159,7 @@ export function registerMenuHandler(bot: Bot): void {
   bot.on('message:text', async (ctx, next) => {
     if (!ctx.from) return next();
 
-    const adminSession = getAdminSession(ctx.from.id);
+    const adminSession = await getAdminSession(ctx.from.id);
     if (adminSession.step !== 'idle') return next();
 
     const action = getMenuActionByLabel(ctx.message.text.trim());

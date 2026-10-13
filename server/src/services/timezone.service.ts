@@ -21,11 +21,16 @@ export function luxonWeekdayToDayOfWeek(weekday: number): number {
 }
 
 export async function getScheduleTimezone(): Promise<string> {
-  const page = await SchedulePage.findOne({ type: 'offline' });
-  const timezone = page?.timezone;
+  const offlinePage = await SchedulePage.findOne({ type: 'offline' });
+  const offlineTimezone = offlinePage?.timezone;
+  if (offlineTimezone && isValidTimezone(offlineTimezone)) {
+    return offlineTimezone;
+  }
 
-  if (timezone && isValidTimezone(timezone)) {
-    return timezone;
+  const onlinePage = await SchedulePage.findOne({ type: 'online' });
+  const onlineTimezone = onlinePage?.timezone;
+  if (onlineTimezone && isValidTimezone(onlineTimezone)) {
+    return onlineTimezone;
   }
 
   return DEFAULT_SCHEDULE_TIMEZONE;
@@ -69,6 +74,26 @@ export function getReminderAt(classStart: DateTime): DateTime {
   return classStart.minus({ hours: 24 });
 }
 
+function getSlotEndOnOccurrence(
+  occurrenceStart: DateTime,
+  endTime: string,
+  scheduleTimezone: string,
+): DateTime {
+  const [endHour, endMinute] = endTime.split(':').map(Number);
+  let end = occurrenceStart.set({
+    hour: endHour,
+    minute: endMinute,
+    second: 0,
+    millisecond: 0,
+  });
+
+  if (end <= occurrenceStart) {
+    end = end.plus({ days: 1 });
+  }
+
+  return end.setZone(scheduleTimezone);
+}
+
 export function formatSlotForUser(
   dayOfWeek: number,
   startTime: string,
@@ -80,8 +105,9 @@ export function formatSlotForUser(
   const occurrence = getNextClassOccurrence(dayOfWeek, startTime, scheduleTimezone);
   const displayTz = userTimezone && isValidTimezone(userTimezone) ? userTimezone : scheduleTimezone;
   const local = occurrence.setZone(displayTz);
+  const endOnOccurrence = getSlotEndOnOccurrence(occurrence, endTime, scheduleTimezone);
   const day = DAY_OF_WEEK_SHORT[luxonWeekdayToDayOfWeek(local.weekday)] ?? '?';
-  const base = `${day} | ${local.toFormat('HH:mm')}-${DateTime.fromFormat(endTime, 'HH:mm', { zone: scheduleTimezone }).setZone(displayTz).toFormat('HH:mm')} ${title}`;
+  const base = `${day} | ${local.toFormat('HH:mm')}-${endOnOccurrence.setZone(displayTz).toFormat('HH:mm')} ${title}`;
 
   if (!userTimezone || !isValidTimezone(userTimezone) || userTimezone === scheduleTimezone) {
     return base;

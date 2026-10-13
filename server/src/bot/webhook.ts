@@ -4,7 +4,9 @@ import { telegramWebhookSecret } from '../config/env';
 import { getBot } from './instance';
 
 export function getWebhookHandler(): RequestHandler {
-  const options = telegramWebhookSecret ? { secretToken: telegramWebhookSecret } : undefined;
+  if (!telegramWebhookSecret) {
+    throw new Error('TELEGRAM_WEBHOOK_SECRET is required for webhook handler');
+  }
 
-  return webhookCallback(getBot(), 'express', options);
+  return webhookCallback(getBot(), 'express', { secretToken: telegramWebhookSecret });
 }

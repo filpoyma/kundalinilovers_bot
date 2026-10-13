@@ -25,7 +25,7 @@ async function sendTrackedConsentMessage(
   const message = await ctx.reply(text, { reply_markup: replyMarkup });
 
   if (ctx.from) {
-    trackConsentMessage(ctx.from.id, message.chat.id, message.message_id);
+    await trackConsentMessage(ctx.from.id, message.chat.id, message.message_id);
   }
 }
 
@@ -33,7 +33,7 @@ async function sendTrackedDocument(ctx: Context, type: 'terms' | 'privacy'): Pro
   const message = await ctx.replyWithDocument(getLegalDocumentInputFile(type));
 
   if (ctx.from) {
-    trackConsentMessage(ctx.from.id, message.chat.id, message.message_id);
+    await trackConsentMessage(ctx.from.id, message.chat.id, message.message_id);
   }
 }
 
@@ -73,7 +73,7 @@ export async function requireConsentForMenu(
     return;
   }
 
-  setPendingMenuAction(from.id, action);
+  await setPendingMenuAction(from.id, action);
   await sendConsentPrompt(ctx);
 }
 
@@ -88,7 +88,7 @@ export async function handleConsentComplete(ctx: Context): Promise<boolean> {
   const user = await findOrCreateUser(ctx);
   if (!hasAcceptedConsent(user)) return false;
 
-  const pending = getPendingMenuAction(from.id);
+  const pending = await getPendingMenuAction(from.id);
   if (!pending) return false;
 
   return true;

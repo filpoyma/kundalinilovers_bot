@@ -34,7 +34,7 @@ export function registerAdminContentHandler(bot: Bot): void {
     await ctx.answerCallbackQuery();
     if (!requireAdmin(ctx)) return;
     const key = ctx.match![1] as TContentPageKey;
-    setAdminSession(ctx.from!.id, { step: 'edit_content', contentKey: key });
+    await setAdminSession(ctx.from!.id, { step: 'edit_content', contentKey: key });
     await ctx.reply('Введите новый текст:');
   });
 }
@@ -53,7 +53,7 @@ export async function handleContentTextMessage(
   switch (session.step) {
     case 'edit_content': {
       if (session.contentKey === 'private_session') {
-        setAdminSession(ctx.from.id, {
+        await setAdminSession(ctx.from.id, {
           step: 'edit_content_link',
           contentKey: 'private_session',
           content: text,
@@ -64,7 +64,7 @@ export async function handleContentTextMessage(
           content: text,
           updatedByTelegramId: ctx.from.id,
         });
-        clearAdminSession(ctx.from.id);
+        await clearAdminSession(ctx.from.id);
         await ctx.reply('Текст «Обо мне» обновлён.', {
           reply_markup: adminContentKeyboard('services'),
         });
@@ -79,7 +79,7 @@ export async function handleContentTextMessage(
         contactLink,
         updatedByTelegramId: ctx.from.id,
       });
-      clearAdminSession(ctx.from.id);
+      await clearAdminSession(ctx.from.id);
       await ctx.reply('«Личная сессия» обновлена.', {
         reply_markup: adminContentKeyboard('private_session'),
       });
