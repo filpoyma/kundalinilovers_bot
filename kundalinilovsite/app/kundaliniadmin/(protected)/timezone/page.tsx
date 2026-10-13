@@ -11,7 +11,7 @@ export default async function AdminTimezonePage() {
         <p className="mb-4 text-[#929292] normal-case">
           Текущая: {data.label} ({data.timezone})
         </p>
-        <form action={saveTimezoneAction}>
+        <form key={data.timezone} action={saveTimezoneAction}>
           <label className="block mb-4">
             <span className="text-[#929292]">Выберите таймзону</span>
             <select

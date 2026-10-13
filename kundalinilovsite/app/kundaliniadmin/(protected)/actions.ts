@@ -1,13 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { AdminApiError, fetchSchedule, updateContent, updateTimezone } from "@/lib/admin-api";
 import { parseScheduleDraft, toScheduleDraft } from "@/lib/admin-schedule";
 import { ScheduleConflictError, saveSchedule } from "@/lib/admin-schedule-save";
-import {
-  getBotContentMessageLength,
-  TELEGRAM_MESSAGE_MAX_LENGTH,
-} from "@/lib/bot-message-length";
 import type {
   IScheduleDraft,
   TContentPageKey,
@@ -66,15 +63,6 @@ export async function saveContentAction(
     return { ok: false, message: "Введите текст" };
   }
 
-  const botLength = getBotContentMessageLength(key, content, contactLink || undefined);
-  if (botLength > TELEGRAM_MESSAGE_MAX_LENGTH) {
-    const overBy = botLength - TELEGRAM_MESSAGE_MAX_LENGTH;
-    return {
-      ok: false,
-      message: `Текст слишком длинный для Telegram: ${botLength} из ${TELEGRAM_MESSAGE_MAX_LENGTH} символов. Сократите ещё на ${overBy}.`,
-    };
-  }
-
   try {
     await updateContent(key, {
       content,
@@ -94,4 +82,5 @@ export async function saveTimezoneAction(formData: FormData): Promise<void> {
   if (!timezone) throw new Error("Выберите таймзону");
   await updateTimezone(timezone);
   revalidatePath("/kundaliniadmin/timezone");
+  redirect("/kundaliniadmin/timezone");
 }
