@@ -4,12 +4,18 @@ import { revalidatePath } from "next/cache";
 import { AdminApiError, fetchSchedule, updateContent, updateTimezone } from "@/lib/admin-api";
 import { parseScheduleDraft, toScheduleDraft } from "@/lib/admin-schedule";
 import { ScheduleConflictError, saveSchedule } from "@/lib/admin-schedule-save";
+import {
+  getBotContentMessageLength,
+  TELEGRAM_MESSAGE_MAX_LENGTH,
+} from "@/lib/bot-message-length";
 import type {
   IScheduleDraft,
   TContentPageKey,
   TSaveScheduleResult,
   TScheduleType,
 } from "@/lib/admin-types";
+
+export type TSaveContentState = { ok: true } | { ok: false; message: string };
 
 function saveErrorMessage(error: unknown): string {
   if (error instanceof ScheduleConflictError) {
@@ -49,15 +55,38 @@ export async function saveScheduleAction(
   return { ok: true, schedule: await loadScheduleDraft(type) };
 }
 
-export async function saveContentAction(key: TContentPageKey, formData: FormData): Promise<void> {
+export async function saveContentAction(
+  key: TContentPageKey,
+  _prev: TSaveContentState,
+  formData: FormData,
+): Promise<TSaveContentState> {
   const content = String(formData.get("content") ?? "").trim();
   const contactLink = String(formData.get("contactLink") ?? "").trim();
-  if (!content) throw new Error("Введите текст");
-  await updateContent(key, {
-    content,
-    contactLink: contactLink || undefined,
-  });
+  if (!content) {
+    return { ok: false, message: "Введите текст" };
+  }
+
+  const botLength = getBotContentMessageLength(key, content, contactLink || undefined);
+  if (botLength > TELEGRAM_MESSAGE_MAX_LENGTH) {
+    const overBy = botLength - TELEGRAM_MESSAGE_MAX_LENGTH;
+    return {
+      ok: false,
+      message: `Текст слишком длинный для Telegram: ${botLength} из ${TELEGRAM_MESSAGE_MAX_LENGTH} символов. Сократите ещё на ${overBy}.`,
+    };
+  }
+
+  try {
+    await updateContent(key, {
+      content,
+      contactLink: contactLink || undefined,
+    });
+  } catch (error) {
+    const reason = error instanceof AdminApiError ? error.message : "Ошибка сервера";
+    return { ok: false, message: reason };
+  }
+
   revalidatePath(`/kundaliniadmin/content/${key}`);
+  return { ok: true };
 }
 
 export async function saveTimezoneAction(formData: FormData): Promise<void> {

@@ -269,9 +269,18 @@ export async function getContent(req: Request, res: Response): Promise<void> {
 
 export async function putContent(req: Request, res: Response): Promise<void> {
   const key = parseContentKey(req.params.key);
-  const parsed = parseContentBody(req.body);
-  if (!key || !parsed || !req.adminTelegramId) {
+  if (!key || !req.adminTelegramId) {
     sendError(res, HTTP_STATUS.BAD_REQUEST, 'VALIDATION', 'Некорректные данные');
+    return;
+  }
+
+  const parsed = parseContentBody(key, req.body);
+  if (!parsed.ok) {
+    const message =
+      parsed.reason === 'too_long'
+        ? 'Текст превышает лимит Telegram (4096 символов в одном сообщении бота).'
+        : 'Некорректные данные';
+    sendError(res, HTTP_STATUS.BAD_REQUEST, 'VALIDATION', message);
     return;
   }
 
